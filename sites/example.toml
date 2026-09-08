@@ -30,3 +30,14 @@ start = 1
 # step = 1
 # title = "My Collection"
 # cache_dir = ".cache/example"
+
+# Blocks appearing on this fraction of pages are treated as site furniture
+# (navigation, reader settings, "report a problem" notices) and dropped.
+# Set dedupe = false to keep everything.
+dedupe = true
+dedupe_threshold = 0.6
+
+# Furniture that varies per page cannot be caught by repetition. Any block
+# matching one of these is dropped whole. Use TOML literal strings (single
+# quotes) so backslashes reach the regex intact.
+strip_patterns = ['^Chapter \d+ - ', '^Report broken chapter']

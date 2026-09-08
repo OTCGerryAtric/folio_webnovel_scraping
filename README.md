@@ -77,6 +77,46 @@ Useful companions:
   want. Repeatable. `script`, `style`, `nav`, `header`, `footer` and `aside`
   are always removed.
 
+### Removing site furniture
+
+Most sites wrap their text in navigation links, reader-settings widgets and
+"report a problem" notices. Some of it sits inside the content element, so a
+selector alone will not shift it.
+
+The giveaway is that this furniture is *identical on every page*, which is
+only visible once you have all the pages together. So after extracting, any
+block appearing on 60% or more of the pages is dropped. Real prose is
+virtually never byte-identical across most of a run; a Prev/Next line is
+identical every time.
+
+This is on by default and it tells you what it did:
+
+```
+Removed 3 boilerplate block(s):
+  on 12/12 pages: Prev Chapter
+  on 12/12 pages: Background Light Gray Light Blue Warm Ivory Font family Ari...
+  on 11/12 pages: Report broken chapter. Please refresh the page.
+```
+
+Read that list. It is the check on whether the tool took something it
+shouldn't have. Tune it with:
+
+- `--dedupe-threshold 0.8` — stricter, drops less
+- `--no-dedupe` — keep everything
+
+Furniture that *varies* per page can't be caught by repetition, so give it a
+pattern instead. Any block matching is dropped whole:
+
+```powershell
+python scrape.py --url "..." --out book.md --strip-regex "^Chapter \d+ - "
+```
+
+`--strip-regex` is repeatable, and patterns are matched per line within a
+block, so `^` anchors to a line start.
+
+Because every page is cached, re-running to tune any of this costs nothing
+and makes no new requests.
+
 ### Options
 
 | Flag | Meaning |
@@ -87,6 +127,9 @@ Useful companions:
 | `--selector` | CSS selector for the main text |
 | `--title-selector` | CSS selector for each page's title |
 | `--remove` | CSS selector to strip; repeatable |
+| `--no-dedupe` | Keep blocks that repeat across pages |
+| `--dedupe-threshold` | Fraction of pages a block must appear on (default 0.6) |
+| `--strip-regex` | Drop any block matching this pattern; repeatable |
 | `--title` | Title for the finished document |
 | `--delay` | Seconds between requests (default 1.5) |
 | `--max-misses` | Consecutive empty pages that end an open-ended run (default 3) |
@@ -132,5 +175,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-105 tests, none of which touch the network. The design notes are in
+134 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.

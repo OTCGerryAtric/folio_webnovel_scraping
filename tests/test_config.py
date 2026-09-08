@@ -137,3 +137,36 @@ def test_an_explicit_cache_directory_is_used_as_given():
 
 def test_settings_are_a_settings_instance():
     assert isinstance(build_settings({"url_template": "http://x/{n}", "out": "b.md"}), Settings)
+
+
+# --- boilerplate removal ----------------------------------------------------
+
+
+def test_boilerplate_defaults_are_applied():
+    settings = build_settings({"url_template": "http://x/{n}", "out": "b.md"})
+
+    assert settings.dedupe is True
+    assert settings.dedupe_threshold == 0.6
+    assert settings.strip_patterns == []
+
+
+def test_a_threshold_outside_zero_to_one_is_rejected():
+    with pytest.raises(ValueError, match="threshold"):
+        build_settings(
+            {"url_template": "http://x/{n}", "out": "b.md", "dedupe_threshold": 1.5}
+        )
+
+
+def test_a_site_file_can_supply_strip_patterns(tmp_path):
+    path = write_toml(
+        tmp_path,
+        # TOML literal strings (single quotes) keep backslashes as written,
+        # which is what a regex wants.
+        """url_template = "http://x/{n}"
+strip_patterns = ['^Chapter \\d+']
+""",
+    )
+
+    settings = build_settings({"out": "b.md"}, load_site_config(path))
+
+    assert settings.strip_patterns == [r"^Chapter \d+"]

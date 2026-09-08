@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from scraper.assemble import SUPPORTED_FORMATS, write_document
+from scraper.boilerplate import clean_pages
 from scraper.config import build_settings, load_site_config
 from scraper.run import build_fetcher, collect_pages
 
@@ -66,6 +67,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--remove", dest="remove_selectors", action="append", metavar="CSS",
         help="CSS selector to strip before extracting; repeatable",
+    )
+
+    parser.add_argument(
+        "--no-dedupe", dest="dedupe", action="store_false", default=None,
+        help="keep blocks that repeat across pages, instead of stripping them",
+    )
+    parser.add_argument(
+        "--dedupe-threshold", dest="dedupe_threshold", type=float, metavar="FRACTION",
+        help="fraction of pages a block must appear on to count as boilerplate"
+             " (default 0.6)",
+    )
+    parser.add_argument(
+        "--strip-regex", dest="strip_patterns", action="append", metavar="REGEX",
+        help="drop any block matching this pattern; repeatable",
     )
 
     parser.add_argument("--title", help="title for the finished document")
@@ -126,6 +141,16 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
         report("error: no pages were collected, so nothing was written.")
         return 1
 
+    collected = len(pages)
+    pages, removals = clean_pages(
+        pages,
+        dedupe=settings.dedupe,
+        threshold=settings.dedupe_threshold,
+        patterns=settings.strip_patterns,
+    )
+    _report_removals(removals, collected, report)
+    _warn_if_emptied(pages, report)
+
     try:
         written = write_document(pages, settings.out, title=settings.title)
     except (ValueError, OSError) as exc:
@@ -134,6 +159,27 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
 
     report(f"Wrote {len(pages)} page(s) to {written}")
     return 0
+
+
+def _report_removals(removals, total: int, report) -> None:
+    """Say what was stripped. Text disappearing silently is how trust goes."""
+    if not removals:
+        return
+    report(f"Removed {len(removals)} boilerplate block(s):")
+    for removal in removals:
+        report(f"  on {removal.pages}/{total} pages: {removal.text}")
+
+
+def _warn_if_emptied(pages, report) -> None:
+    """An emptied page means the threshold was too aggressive. Say so."""
+    emptied = [p.number for p in pages if p.is_empty]
+    if emptied:
+        report(
+            f"warning: {len(emptied)} page(s) were left with no text "
+            f"(first: {emptied[0]}). Try --dedupe-threshold with a higher "
+            f"value, or --no-dedupe. Re-running costs nothing: the pages "
+            f"are cached."
+        )
 
 
 def _check_output_format(out: str) -> None:

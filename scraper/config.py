@@ -29,6 +29,9 @@ DEFAULTS: dict = {
     "max_retries": 3,
     "backoff": 2.0,
     "timeout": 30.0,
+    "dedupe": True,
+    "dedupe_threshold": 0.6,
+    "strip_patterns": [],
     "refresh": False,
     "title": None,
     "cache_dir": None,
@@ -52,6 +55,9 @@ class Settings:
     remove_selectors: list[str] = field(default_factory=list)
     delay: float = 1.5
     max_misses: int = 3
+    dedupe: bool = True
+    dedupe_threshold: float = 0.6
+    strip_patterns: list[str] = field(default_factory=list)
     max_retries: int = 3
     backoff: float = 2.0
     timeout: float = 30.0
@@ -111,6 +117,7 @@ def build_settings(args: dict, config: dict | None = None) -> Settings:
     """Merge defaults, an optional site file, and CLI arguments, in that order."""
     merged = dict(DEFAULTS)
     merged["remove_selectors"] = []
+    merged["strip_patterns"] = []
 
     for source in (config or {}, args or {}):
         merged.update({k: v for k, v in source.items() if v is not None})
@@ -138,5 +145,17 @@ def _validate(values: dict) -> None:
         raise ValueError(f"--step must be 1 or more, got {step!r}")
     if end is not None and end < start:
         raise ValueError(f"--end ({end}) is before --start ({start})")
+    threshold = values["dedupe_threshold"]
+    if not 0 < threshold <= 1:
+        raise ValueError(
+            f"--dedupe-threshold must be above 0 and at most 1, got {threshold!r}"
+        )
+
+    for pattern in values.get("strip_patterns") or []:
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid strip pattern {pattern!r}: {exc}") from exc
+
     if values["max_misses"] < 1:
         raise ValueError(f"--max-misses must be 1 or more, got {values['max_misses']!r}")

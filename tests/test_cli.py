@@ -110,3 +110,82 @@ def test_a_site_file_supplies_defaults(tmp_path):
 
     assert code == 0
     assert "only" in out.read_text(encoding="utf-8")
+
+
+# --- boilerplate removal ----------------------------------------------------
+
+
+def test_dedupe_is_on_unless_switched_off():
+    assert parse_args(["--url", "http://x/{n}", "--out", "b.md"])["dedupe"] is None
+    assert parse_args(["--url", "http://x/{n}", "--out", "b.md", "--no-dedupe"])["dedupe"] is False
+
+
+def test_strip_regex_can_be_repeated():
+    args = parse_args(
+        ["--url", "http://x/{n}", "--out", "b.md", "--strip-regex", "^Nav", "--strip-regex", "^Ad"]
+    )
+
+    assert args["strip_patterns"] == ["^Nav", "^Ad"]
+
+
+def test_the_dedupe_threshold_is_parsed():
+    args = parse_args(["--url", "http://x/{n}", "--out", "b.md", "--dedupe-threshold", "0.8"])
+
+    assert args["dedupe_threshold"] == 0.8
+
+
+def chrome_page(text):
+    return f"<html><body><div id='c'><p>Prev Chapter</p><p>{text}</p></div></body></html>"
+
+
+def test_repeated_chrome_is_gone_from_the_finished_document(tmp_path):
+    out = tmp_path / "book.md"
+    pages = {n: chrome_page(f"Body {n}.") for n in (1, 2, 3)}
+
+    code = main(
+        ["--url", "http://x/{n}", "--out", str(out), "--start", "1", "--end", "3",
+         "--selector", "#c"],
+        fetcher_factory=lambda settings: StubFetcher(pages),
+    )
+
+    text = out.read_text(encoding="utf-8")
+    assert code == 0
+    assert "Prev Chapter" not in text
+    assert "Body 1." in text and "Body 3." in text
+
+
+def test_no_dedupe_keeps_the_chrome(tmp_path):
+    out = tmp_path / "book.md"
+    pages = {n: chrome_page(f"Body {n}.") for n in (1, 2, 3)}
+
+    main(
+        ["--url", "http://x/{n}", "--out", str(out), "--start", "1", "--end", "3",
+         "--selector", "#c", "--no-dedupe"],
+        fetcher_factory=lambda settings: StubFetcher(pages),
+    )
+
+    assert "Prev Chapter" in out.read_text(encoding="utf-8")
+
+
+def test_a_strip_pattern_is_applied(tmp_path):
+    out = tmp_path / "book.md"
+    pages = {n: f"<html><body><div id='c'><p>Chapter {n} - Title</p><p>Body {n}.</p></div></body></html>" for n in (1, 2)}
+
+    main(
+        ["--url", "http://x/{n}", "--out", str(out), "--start", "1", "--end", "2",
+         "--selector", "#c", "--strip-regex", r"^Chapter \d+ - "],
+        fetcher_factory=lambda settings: StubFetcher(pages),
+    )
+
+    text = out.read_text(encoding="utf-8")
+    assert "- Title" not in text
+    assert "Body 1." in text
+
+
+def test_an_invalid_strip_pattern_exits_non_zero(tmp_path):
+    code = main(
+        ["--url", "http://x/{n}", "--out", str(tmp_path / "b.md"), "--strip-regex", "[unclosed"],
+        fetcher_factory=lambda settings: StubFetcher({}),
+    )
+
+    assert code == 2

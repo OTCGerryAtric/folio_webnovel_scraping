@@ -24,6 +24,8 @@ In scope:
 - Formatting preserved as Markdown: paragraphs, headings, emphasis,
   blockquotes, line breaks, lists
 - Output as Markdown, plain text, PDF, or EPUB
+- Removal of site furniture: blocks repeating across most pages, plus
+  user-supplied patterns for furniture that varies per page
 - Polite fetching: rate limiting, retry with backoff, on-disk cache
 
 Out of scope:
@@ -95,6 +97,32 @@ The built-in Type 1 fonts cover Latin text including accented characters
 and typographic punctuation. Non-Latin scripts would need an embedded
 font; that is deliberately not carried in the repo until a source needs it.
 
+### `scraper/boilerplate.py`
+
+Removes site furniture after extraction, when the whole run is visible at
+once. Pure functions over a list of `Page`.
+
+Two mechanisms, both operating on whole blocks:
+
+- **Repetition.** A block appearing on `threshold` (default 0.6) or more of
+  the pages is furniture, not prose. Prose is virtually never
+  byte-identical across most of a run, whereas navigation and
+  reader-settings widgets are identical every time. Comparison is on
+  whitespace-collapsed text, so trivial layout differences still match.
+  Requires at least 3 pages: with two, a coincidence is not evidence.
+- **Patterns.** Furniture that varies per page — a heading carrying the
+  page number — cannot be caught by repetition, so the user supplies
+  regular expressions. Matched with `re.MULTILINE` so `^` anchors to a
+  line start inside a block.
+
+Returns the cleaned pages alongside a list of `Removal(text, pages,
+reason)`. The caller reports these: text disappearing silently is how a
+tool loses the user's trust. Summary text is deliberately ASCII, since it
+goes to a console that may be in a legacy code page.
+
+A page left empty is kept rather than dropped, so an over-aggressive
+threshold is visible rather than silent. The CLI warns when this happens.
+
 ### `scraper/config.py`
 
 Loads an optional TOML file via stdlib `tomllib` and merges it with CLI
@@ -127,6 +155,9 @@ so the tool is fully usable with no config file:
     --delay SECONDS    default 1.5
     --max-misses N     consecutive failures before stopping (default 3)
     --refresh          ignore the cache
+    --no-dedupe        keep blocks repeating across pages
+    --dedupe-threshold FRACTION   default 0.6
+    --strip-regex REGEX           repeatable
     --site PATH        optional TOML config
     --verbose
 
@@ -155,6 +186,8 @@ pytest, no network access anywhere in the suite.
   backoff, `Retry-After`, 404 handling
 - `assemble.py` — synthetic pages through each writer; PDFs are
   read back with pypdf so the assertions are about what landed on the page
+- `boilerplate.py` — threshold edges either side of the default,
+  whitespace-insensitive matching, too-few-pages, reporting, patterns
 - `config.py` — merge precedence and validation failures
 - `scrape.py` — the run loop against a stubbed fetcher: bounded range,
   open-ended stop, miss tolerance
