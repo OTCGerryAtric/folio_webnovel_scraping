@@ -5,3 +5,11 @@ __pycache__/
 .pytest_cache/
 *.md.bak
 /out/
+
+# Scraped output. Generated documents do not belong in the repo -
+# they are whatever you last pointed the tool at, not source code.
+/out/
+/book.md
+/book.txt
+/*.epub
+/*.pdf

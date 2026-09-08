@@ -23,7 +23,7 @@ In scope:
 - Text extraction via an explicit CSS selector, or automatic detection
 - Formatting preserved as Markdown: paragraphs, headings, emphasis,
   blockquotes, line breaks, lists
-- Output as Markdown, plain text, or EPUB
+- Output as Markdown, plain text, PDF, or EPUB
 - Polite fetching: rate limiting, retry with backoff, on-disk cache
 
 Out of scope:
@@ -78,11 +78,22 @@ miss to the caller.
 ### `scraper/assemble.py`
 
 Takes an ordered list of `Page` and writes one file. Format is chosen by
-the output extension: `.md`, `.txt`, `.epub`.
+the output extension: `.md`, `.txt`, `.pdf`, `.epub`.
 
 - Markdown — a `#` title per page, blank line separated
 - Plain text — emphasis markers stripped, headings underlined
 - EPUB — one chapter per page, with a generated table of contents
+- PDF — A4, 11pt serif, each page starting a fresh sheet under its own
+  heading, page numbers in the footer, and an outline bookmark per page.
+  A title page when a document title is given.
+
+PDF rendering uses reportlab, chosen over weasyprint because it installs
+from pip alone: weasyprint needs the GTK/Pango runtime, which is a
+meaningful obstacle on Windows for a marginal gain in typography.
+
+The built-in Type 1 fonts cover Latin text including accented characters
+and typographic punctuation. Non-Latin scripts would need an embedded
+font; that is deliberately not carried in the repo until a source needs it.
 
 ### `scraper/config.py`
 
@@ -142,7 +153,8 @@ pytest, no network access anywhere in the suite.
   auto-detection
 - `fetch.py` — mocked transport for cache hits, cache writes, retry and
   backoff, `Retry-After`, 404 handling
-- `assemble.py` — synthetic pages through each of the three writers
+- `assemble.py` — synthetic pages through each writer; PDFs are
+  read back with pypdf so the assertions are about what landed on the page
 - `config.py` — merge precedence and validation failures
 - `scrape.py` — the run loop against a stubbed fetcher: bounded range,
   open-ended stop, miss tolerance

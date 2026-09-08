@@ -38,11 +38,25 @@ until three pages in a row come back empty:
 python scrape.py --url "https://example.com/page-{n}" --out book.md
 ```
 
-The output format follows the extension — `.md`, `.txt` or `.epub`:
+The output format follows the extension — `.md`, `.txt`, `.pdf` or `.epub`:
 
 ```powershell
+python scrape.py --url "https://example.com/page-{n}" --end 20 --out book.pdf
 python scrape.py --url "https://example.com/page-{n}" --end 20 --out book.epub
 ```
+
+### PDF
+
+`--out book.pdf` produces a readable A4 document: 11pt serif, each source
+page starting on a fresh sheet under its own heading, page numbers in the
+footer, and a bookmark per page so your reader's outline panel lets you jump
+around. Add `--title "My Collection"` for a title page.
+
+One limitation worth knowing: the built-in fonts cover Latin text properly,
+including accented characters, curly quotes and em-dashes. Text in Cyrillic,
+Greek, Hebrew or any CJK script will come out as blank boxes. If you need
+those, the fix is to embed a font that covers them — ask and it's a small
+change to `_pdf_styles()` in `scraper/assemble.py`.
 
 ### Pointing it at the right part of the page
 
@@ -68,7 +82,7 @@ Useful companions:
 | Flag | Meaning |
 |------|---------|
 | `--url` | URL containing `{n}` |
-| `--out` | Output file; extension picks the format |
+| `--out` | Output file; `.md`, `.txt`, `.pdf` or `.epub` |
 | `--start`, `--end`, `--step` | Which numbers to walk (default: from 1, by 1, no end) |
 | `--selector` | CSS selector for the main text |
 | `--title-selector` | CSS selector for each page's title |
@@ -118,5 +132,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-89 tests, none of which touch the network. The design notes are in
+105 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.

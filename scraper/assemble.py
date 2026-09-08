@@ -170,6 +170,163 @@ def _inline_html(text: str) -> str:
     return _unescape(text)
 
 
+# --- pdf --------------------------------------------------------------------
+
+
+def _write_pdf(pages: list[Page], path: Path, title: str | None) -> None:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+
+    styles = _pdf_styles()
+
+    document = _OutlinedDocument(
+        str(path),
+        pagesize=A4,
+        title=title or path.stem,
+        author="",
+        leftMargin=22 * mm,
+        rightMargin=22 * mm,
+        topMargin=22 * mm,
+        bottomMargin=25 * mm,
+    )
+
+    story = []
+    if title:
+        story.append(Spacer(1, 60 * mm))
+        story.append(Paragraph(_inline_pdf(title), styles["ScrDocTitle"]))
+        story.append(PageBreak())
+
+    for index, page in enumerate(pages):
+        if index:
+            story.append(PageBreak())
+        story.append(Paragraph(_inline_pdf(_heading_for(page)), styles["ScrPageHeading"]))
+        story.extend(_pdf_flowables(page.body, styles))
+
+    document.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+
+
+def _pdf_styles():
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+
+    styles = getSampleStyleSheet()
+    base = dict(fontName="Times-Roman", fontSize=11, leading=16)
+
+    styles.add(ParagraphStyle("ScrBody", spaceAfter=7, **base))
+    styles.add(ParagraphStyle("ScrBullet", leftIndent=8 * mm, spaceAfter=3, **base))
+    styles.add(
+        ParagraphStyle(
+            "ScrQuote", leftIndent=8 * mm, rightIndent=8 * mm, spaceAfter=7,
+            fontName="Times-Italic", fontSize=11, leading=16,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            "ScrPageHeading", fontName="Times-Bold", fontSize=18, leading=23, spaceAfter=10,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            "ScrDocTitle", fontName="Times-Bold", fontSize=28, leading=34,
+            alignment=TA_CENTER,
+        )
+    )
+    for level, size in ((1, 15), (2, 13), (3, 12)):
+        styles.add(
+            ParagraphStyle(
+                f"ScrHead{level}", fontName="Times-Bold", fontSize=size,
+                leading=size + 5, spaceBefore=9, spaceAfter=5,
+            )
+        )
+    return styles
+
+
+def _pdf_flowables(markdown: str, styles) -> list:
+    """Render the Markdown subset the extractor emits into flowables."""
+    from reportlab.platypus import HRFlowable, Paragraph
+
+    flowables = []
+    for block in markdown.split("\n\n"):
+        block = block.strip("\n")
+        if not block.strip():
+            continue
+        lines = block.split("\n")
+
+        heading = _HEADING_RE.match(block)
+        if heading:
+            level = min(len(heading.group(1)), 3)
+            flowables.append(
+                Paragraph(_inline_pdf(heading.group(2)), styles[f"ScrHead{level}"])
+            )
+        elif block.strip() == "---":
+            flowables.append(HRFlowable(width="60%", spaceBefore=8, spaceAfter=8))
+        elif all(line.startswith(">") for line in lines):
+            inner = " ".join(line.lstrip("> ").rstrip() for line in lines)
+            flowables.append(Paragraph(_inline_pdf(inner), styles["ScrQuote"]))
+        elif all(line.startswith("- ") for line in lines):
+            flowables.extend(
+                Paragraph(f"• {_inline_pdf(line[2:])}", styles["ScrBullet"])
+                for line in lines
+            )
+        elif all(_ORDERED_ITEM_RE.match(line) for line in lines):
+            flowables.extend(
+                Paragraph(
+                    f"{number}. {_inline_pdf(_ORDERED_ITEM_RE.match(line).group(1))}",
+                    styles["ScrBullet"],
+                )
+                for number, line in enumerate(lines, 1)
+            )
+        else:
+            flowables.append(
+                Paragraph(_inline_pdf(block).replace(chr(10), "<br/>"), styles["ScrBody"])
+            )
+
+    return flowables
+
+
+def _inline_pdf(text: str) -> str:
+    """Escape for reportlab's markup, then turn our markers into its tags."""
+    text = html.escape(text, quote=False)
+    text = _STRONG_RE.sub(r"<b>\1</b>", text)
+    text = _EMPHASIS_RE.sub(r"<i>\1</i>", text)
+    return _unescape(text)
+
+
+def _draw_footer(canvas, document) -> None:
+    canvas.saveState()
+    canvas.setFont("Times-Roman", 9)
+    canvas.drawCentredString(
+        document.pagesize[0] / 2, 14 * 72 / 25.4, f"- {canvas.getPageNumber()} -"
+    )
+    canvas.restoreState()
+
+
+def _outlined_document_class():
+    """Built lazily so importing this module does not pull in reportlab."""
+    from reportlab.platypus import Paragraph, SimpleDocTemplate
+
+    class OutlinedDocument(SimpleDocTemplate):
+        """A document that bookmarks each page heading for the reader's outline."""
+
+        def afterFlowable(self, flowable):
+            if isinstance(flowable, Paragraph) and flowable.style.name == "ScrPageHeading":
+                text = flowable.getPlainText()
+                key = f"heading-{id(flowable)}"
+                self.canv.bookmarkPage(key)
+                self.canv.addOutlineEntry(text, key, level=0, closed=False)
+
+    return OutlinedDocument
+
+
+class _OutlinedDocument:
+    """Defers to the real reportlab subclass at construction time."""
+
+    def __new__(cls, *args, **kwargs):
+        return _outlined_document_class()(*args, **kwargs)
+
+
 # Registered last, once every writer above exists.
 _WRITERS = {
     ".md": _write_markdown,
@@ -177,6 +334,7 @@ _WRITERS = {
     ".txt": _write_text,
     ".text": _write_text,
     ".epub": _write_epub,
+    ".pdf": _write_pdf,
 }
 
 SUPPORTED_FORMATS = frozenset(_WRITERS)
