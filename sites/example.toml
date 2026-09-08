@@ -1,0 +1,32 @@
+# A saved source. Pass it with --site, and override anything on the
+# command line:
+#
+#   python scrape.py --site sites/example.toml --end 20 --out book.md
+#
+# Only url_template is required. Every key here has a matching flag.
+
+url_template = "https://example.com/page-{n}"
+
+# Where the text lives. Omit it and the densest block of prose on the page
+# is used, which is usually right.
+content_selector = "div.entry-content"
+
+# Where each page's title lives. If the heading sits inside
+# content_selector it will appear twice - narrow the content selector.
+title_selector = "h1.entry-title"
+
+# Anything else to strip before extracting. script, style, nav, header,
+# footer and aside always go.
+remove_selectors = [".advert", "#comments", ".share-buttons"]
+
+# Seconds between requests. Be generous with someone else's server.
+delay = 2.0
+
+# Consecutive empty pages that end an open-ended run.
+max_misses = 3
+
+start = 1
+# end = 250          # omit to run until the pages run out
+# step = 1
+# title = "My Collection"
+# cache_dir = ".cache/example"

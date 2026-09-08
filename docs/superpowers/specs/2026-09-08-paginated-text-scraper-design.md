@@ -90,9 +90,19 @@ Loads an optional TOML file via stdlib `tomllib` and merges it with CLI
 arguments. CLI arguments win. Validates that a URL template is present
 and contains `{n}`.
 
+### `scraper/run.py`
+
+The run loop: walk the numbers, fetch, extract, attach the number, collect.
+Separated from argument parsing so it can be driven by a stub fetcher in
+the tests.
+
+An open-ended run stops once `max_misses` pages in a row are missing or
+empty. A bounded run reports gaps and carries on to its end. A keyboard
+interrupt returns whatever was collected rather than discarding it.
+
 ### `scrape.py`
 
-Argument parsing and the run loop. Every setting is available as a flag,
+Argument parsing and the entry point. Every setting is available as a flag,
 so the tool is fully usable with no config file:
 
     --url TEMPLATE     URL containing {n}
