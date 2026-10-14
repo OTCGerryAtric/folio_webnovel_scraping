@@ -198,3 +198,42 @@ def test_an_overlap_window_below_one_is_rejected():
         build_settings(
             {"url_template": "http://x/{n}", "out": "b.md", "overlap_window": 0}
         )
+
+
+# --- book settings ----------------------------------------------------------
+
+
+def test_book_keys_are_accepted_from_a_file(tmp_path):
+    path = tmp_path / "book.toml"
+    path.write_text(
+        'url_template = "http://x/{n}"\n'
+        'author = "Dagzo"\n'
+        'source = "http://x/book"\n'
+        r"remove_phrases = ['free\s*web']" "\n",
+        encoding="utf-8",
+    )
+
+    settings = build_settings({}, load_site_config(path), require_out=False)
+
+    assert settings.author == "Dagzo"
+    assert settings.source == "http://x/book"
+    assert settings.remove_phrases == [r"free\s*web"]
+
+
+def test_out_can_be_left_unset_when_not_required():
+    settings = build_settings({"url_template": "http://x/{n}"}, require_out=False)
+
+    assert settings.out is None
+
+
+def test_out_is_still_required_by_default():
+    with pytest.raises(ValueError, match="--out"):
+        build_settings({"url_template": "http://x/{n}"})
+
+
+def test_an_invalid_remove_phrase_is_reported_clearly():
+    with pytest.raises(ValueError, match="remove phrase"):
+        build_settings(
+            {"url_template": "http://x/{n}", "remove_phrases": ["(unclosed"]},
+            require_out=False,
+        )

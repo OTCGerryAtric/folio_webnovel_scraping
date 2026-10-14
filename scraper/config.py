@@ -39,6 +39,9 @@ DEFAULTS: dict = {
     "refresh": False,
     "title": None,
     "titles": None,
+    "author": None,
+    "source": None,
+    "remove_phrases": [],
     "cache_dir": None,
     "verbose": False,
 }
@@ -71,6 +74,9 @@ class Settings:
     refresh: bool = False
     title: str | None = None
     titles: str | None = None
+    author: str | None = None
+    source: str | None = None
+    remove_phrases: list[str] = field(default_factory=list)
     cache_dir: str | None = None
     verbose: bool = False
 
@@ -121,20 +127,25 @@ def load_site_config(path: Path | str) -> dict:
     return config
 
 
-def build_settings(args: dict, config: dict | None = None) -> Settings:
-    """Merge defaults, an optional site file, and CLI arguments, in that order."""
+def build_settings(args: dict, config: dict | None = None, require_out: bool = True) -> Settings:
+    """Merge defaults, an optional site file, and CLI arguments, in that order.
+
+    A book's stages choose their own output paths, so they pass
+    `require_out=False`.
+    """
     merged = dict(DEFAULTS)
     merged["remove_selectors"] = []
     merged["strip_patterns"] = []
+    merged["remove_phrases"] = []
 
     for source in (config or {}, args or {}):
         merged.update({k: v for k, v in source.items() if v is not None})
 
-    _validate(merged)
+    _validate(merged, require_out)
     return Settings(**{k: merged[k] for k in DEFAULTS})
 
 
-def _validate(values: dict) -> None:
+def _validate(values: dict, require_out: bool = True) -> None:
     template = values.get("url_template")
     if not template:
         raise ValueError(
@@ -145,7 +156,7 @@ def _validate(values: dict) -> None:
         raise ValueError(
             f"The url template must contain the {{n}} placeholder: {template!r}"
         )
-    if not values.get("out"):
+    if require_out and not values.get("out"):
         raise ValueError("No output path given. Pass --out, e.g. --out book.md")
 
     start, end, step = values["start"], values["end"], values["step"]
@@ -168,6 +179,12 @@ def _validate(values: dict) -> None:
             re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"Invalid strip pattern {pattern!r}: {exc}") from exc
+
+    for pattern in values.get("remove_phrases") or []:
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid remove phrase {pattern!r}: {exc}") from exc
 
     if values["max_misses"] < 1:
         raise ValueError(f"--max-misses must be 1 or more, got {values['max_misses']!r}")
