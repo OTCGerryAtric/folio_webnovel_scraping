@@ -114,7 +114,10 @@ def _strip_repeated(pages: list[Page], threshold: float) -> tuple[list[Page], li
             originals.setdefault(key, block)
 
     threshold_count = threshold * len(pages)
-    repeated = {key for key, count in counts.items() if count >= threshold_count}
+    repeated = {
+        key for key, count in counts.items()
+        if count >= threshold_count and not _is_scene_break(key)
+    }
     if not repeated:
         return pages, []
 
@@ -138,6 +141,12 @@ def _blocks(page: Page) -> list[str]:
 
 def _rebuild(page: Page, blocks: list[str]) -> Page:
     return dataclasses.replace(page, body="\n\n".join(blocks))
+
+
+def _is_scene_break(block: str) -> bool:
+    """A divider such as `* * *` or `♢♢♢♢` repeats on most pages, but it is
+    part of the story's structure. Site furniture always has words in it."""
+    return not any(character.isalnum() for character in block)
 
 
 def _key(block: str) -> str:

@@ -20,6 +20,18 @@ def bodies(pages):
 # --- repeated blocks --------------------------------------------------------
 
 
+def test_a_scene_break_repeated_on_every_page_is_kept():
+    pages = [
+        pg(n, "Prev Chapter", f"Scene one of {n}.", "♢♢♢♢", f"Scene two of {n}.", "* * *", "---")
+        for n in (1, 2, 3)
+    ]
+
+    cleaned, removals = clean_pages(pages)
+
+    assert bodies(cleaned)[0] == "Scene one of 1.\n\n♢♢♢♢\n\nScene two of 1.\n\n* * *\n\n---"
+    assert [r.text for r in removals] == ["Prev Chapter"]
+
+
 def test_a_block_on_every_page_is_removed():
     pages = [pg(n, "Prev Chapter", f"The prose of chapter {n}.") for n in (1, 2, 3)]
 
