@@ -3,7 +3,7 @@ import pytest
 
 from scraper.book import Book
 from scraper.fetch import FetchResult
-from scraper.stages import build, clean, download, read_cleaned, site_latest
+from scraper.stages import build, build_blocks, clean, download, read_cleaned, site_latest
 
 
 def chapter(text, title="T"):
@@ -269,3 +269,45 @@ def test_a_selector_that_finds_nothing_stops_a_bounded_download(tmp_path):
     assert got == []
     assert fetcher.asked == [1, 2, 3]
     assert any("content_selector" in line for line in lines)
+
+
+# --- build in blocks --------------------------------------------------------
+
+
+def test_blocks_line_up_on_round_numbers(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Text {n}.") for n in range(1, 8)})
+    clean(book, book.settings())
+
+    paths = build_blocks(book, book.settings(), every=3, fmt="md")
+
+    assert [p.name for p in paths] == ["B 1-3.md", "B 4-6.md", "B 7-7.md"]
+    assert "Text 5." in paths[1].read_text(encoding="utf-8")
+    assert "Text 3." not in paths[1].read_text(encoding="utf-8")
+
+
+def test_blocks_are_named_by_the_chapters_they_hold_and_empty_ones_skipped(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Text {n}.") for n in (2, 3, 8, 9)})
+    clean(book, book.settings())
+
+    paths = build_blocks(book, book.settings(), every=5, fmt="md")
+
+    assert [p.name for p in paths] == ["B 2-3.md", "B 8-9.md"]
+
+
+def test_blocks_respect_a_range(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Text {n}.") for n in range(1, 10)})
+    clean(book, book.settings())
+
+    paths = build_blocks(book, book.settings(), every=3, fmt="md", start=5, end=7)
+
+    assert [p.name for p in paths] == ["B 5-6.md", "B 7-7.md"]
+
+
+def test_blocks_with_nothing_cleaned_say_to_clean_first(tmp_path):
+    book = make_book(tmp_path)
+
+    with pytest.raises(ValueError, match="clean"):
+        build_blocks(book, book.settings(), every=3)

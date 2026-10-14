@@ -285,3 +285,49 @@ def test_a_file_in_use_is_a_clear_error_not_a_crash(tmp_path, monkeypatch):
 
     assert code == 2
     assert "error:" in out and "in use" in out
+
+
+def three_cleaned_chapters(tmp_path, extra=""):
+    book, _ = added_book(tmp_path)
+    if extra:
+        with book.config_path.open("a", encoding="utf-8") as handle:
+            handle.write(extra)
+    for n in range(1, 4):
+        book.raw_path(n).write_text(chapter(f"Text {n}."), encoding="utf-8")
+    run(["clean", "B"], tmp_path)
+    return book
+
+
+def test_build_every_writes_blocks(tmp_path):
+    book = three_cleaned_chapters(tmp_path)
+
+    code, out = run(["build", "B", "--format", "md", "--every", "2"], tmp_path)
+
+    assert code == 0
+    assert [p.name for p in book.outputs()] == ["B 1-2.md", "B 3-3.md"]
+    assert "Wrote 2 file(s)" in out
+
+
+def test_build_every_can_be_the_books_default(tmp_path):
+    book = three_cleaned_chapters(tmp_path, "build_every = 2\n")
+
+    run(["build", "B", "--format", "md"], tmp_path)
+
+    assert [p.name for p in book.outputs()] == ["B 1-2.md", "B 3-3.md"]
+
+
+def test_every_zero_overrides_the_default_with_one_book(tmp_path):
+    book = three_cleaned_chapters(tmp_path, "build_every = 2\n")
+
+    run(["build", "B", "--format", "md", "--every", "0"], tmp_path)
+
+    assert [p.name for p in book.outputs()] == ["B 1-3.md"]
+
+
+def test_a_negative_block_size_is_a_clear_error(tmp_path):
+    three_cleaned_chapters(tmp_path)
+
+    code, out = run(["build", "B", "--every", "-5"], tmp_path)
+
+    assert code == 2
+    assert "every" in out

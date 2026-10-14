@@ -189,3 +189,35 @@ def build(
         raise ValueError(f"{book.name} has no cleaned chapters{span}. Run clean first.")
     path = book.output_dir / f"{book.name} {pages[0].number}-{pages[-1].number}.{fmt.lower().lstrip('.')}"
     return write_document(pages, path, title=settings.title or book.name)
+
+
+def build_blocks(
+    book: Book,
+    settings: Settings,
+    every: int,
+    fmt: str = "epub",
+    start: int | None = None,
+    end: int | None = None,
+) -> list[Path]:
+    """Build one file per block of `every` chapters: 1-500, 501-1000, ...
+
+    Blocks sit on round numbers rather than on the first chapter held, so a
+    block keeps its name as the book grows. A block with nothing cleaned in
+    it is skipped; each file is named after the chapters it actually holds.
+    """
+    numbers = [
+        n for n in book.cleaned_numbers()
+        if (start is None or n >= start) and (end is None or n <= end)
+    ]
+    if not numbers:
+        return [build(book, settings, fmt, start, end)]  # raises: nothing cleaned
+
+    paths = []
+    for block in sorted({(n - 1) // every for n in numbers}):
+        first, last = block * every + 1, (block + 1) * every
+        if start is not None:
+            first = max(first, start)
+        if end is not None:
+            last = min(last, end)
+        paths.append(build(book, settings, fmt, first, last))
+    return paths

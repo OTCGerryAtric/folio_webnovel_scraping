@@ -237,3 +237,10 @@ def test_an_invalid_remove_phrase_is_reported_clearly():
             {"url_template": "http://x/{n}", "remove_phrases": ["(unclosed"]},
             require_out=False,
         )
+
+
+def test_build_every_defaults_to_one_book_and_rejects_a_negative():
+    assert build_settings({"url_template": "http://x/{n}"}, require_out=False).build_every == 0
+
+    with pytest.raises(ValueError, match="build_every"):
+        build_settings({"url_template": "http://x/{n}", "build_every": -1}, require_out=False)

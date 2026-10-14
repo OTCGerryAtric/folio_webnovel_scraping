@@ -24,7 +24,7 @@ from scraper.fetch import fetch_page
 from scraper.reporting import report_removals, report_trims, warn_if_emptied
 from scraper.review import repeated_sentences
 from scraper.run import build_fetcher
-from scraper.stages import build, clean, download, read_cleaned, site_latest
+from scraper.stages import build, build_blocks, clean, download, read_cleaned, site_latest
 
 COMMANDS = ("add", "books", "status", "download", "clean", "review", "build", "update")
 
@@ -73,6 +73,11 @@ def build_parser() -> argparse.ArgumentParser:
     builder.add_argument("--format", default="epub", help="epub, pdf, md or txt (default epub)")
     builder.add_argument("--from", dest="start", type=int, help="first chapter")
     builder.add_argument("--to", dest="end", type=int, help="last chapter")
+    builder.add_argument(
+        "--every", type=int, metavar="N",
+        help="one file per N chapters: 1-N, N+1-2N, ... (0: one book; "
+             "default: build_every in book.toml)",
+    )
 
     update = sub.add_parser("update", help="download what is new, clean, and build the new chapters")
     update.add_argument("book")
@@ -232,7 +237,16 @@ def _review(args, root, report, **_):
 
 def _build(args, root, report, **_):
     book = find_book(args.book, root)
-    path = build(book, book.settings(), fmt=args.format, start=args.start, end=args.end)
+    settings = book.settings(build_every=args.every)
+    if settings.build_every:
+        paths = build_blocks(
+            book, settings, settings.build_every, fmt=args.format, start=args.start, end=args.end
+        )
+        report(f"Wrote {len(paths)} file(s), {settings.build_every} chapters to a block:")
+        for path in paths:
+            report(f"  {path}")
+        return 0
+    path = build(book, settings, fmt=args.format, start=args.start, end=args.end)
     count = len(read_cleaned(book, args.start, args.end))
     report(f"Wrote {count} chapter(s) to {path}")
     return 0

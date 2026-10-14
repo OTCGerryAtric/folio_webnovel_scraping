@@ -57,9 +57,14 @@ will do:
 | `download shadow` | Fetches chapters not yet in `01 Raw`. Stop with Ctrl-C and run again to carry on |
 | `clean shadow` | Rebuilds `02 Cleaned` from `01 Raw` and reports everything it removed |
 | `review shadow` | Lists sentences that recur across many chapters, to spot junk |
-| `build shadow` | Joins every cleaned chapter into an epub (`--format pdf/md/txt`, `--from`/`--to`) |
+| `build shadow` | Joins every cleaned chapter into an epub (`--format pdf/md/txt`, `--from`/`--to`, `--every 500` for one file per 500 chapters) |
 | `update shadow` | The everyday one: download what's new, clean, and build just the new chapters |
 | `books` | Lists the books |
+
+`build --every 500` writes one file per block of chapters - `1-500`,
+`501-1000`, `1001-1274` - lined up on round numbers so each block keeps
+its name as the book grows. Put `build_every = 500` in `book.toml` to make
+that the default; `--every 0` then builds one book.
 
 `clean` is local and quick, so re-run it whenever you change `book.toml`.
 It replaces everything in `02 Cleaned`, so a hand edit there won't last -
@@ -290,5 +295,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-284 tests, none of which touch the network. The design notes are in
+293 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.

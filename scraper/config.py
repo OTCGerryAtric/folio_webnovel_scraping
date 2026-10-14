@@ -42,6 +42,7 @@ DEFAULTS: dict = {
     "author": None,
     "source": None,
     "remove_phrases": [],
+    "build_every": 0,
     "cache_dir": None,
     "verbose": False,
 }
@@ -77,6 +78,7 @@ class Settings:
     author: str | None = None
     source: str | None = None
     remove_phrases: list[str] = field(default_factory=list)
+    build_every: int = 0
     cache_dir: str | None = None
     verbose: bool = False
 
@@ -185,6 +187,9 @@ def _validate(values: dict, require_out: bool = True) -> None:
             re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"Invalid remove phrase {pattern!r}: {exc}") from exc
+
+    if values["build_every"] < 0:
+        raise ValueError(f"build_every must be 0 (one book) or more, got {values['build_every']!r}")
 
     if values["max_misses"] < 1:
         raise ValueError(f"--max-misses must be 1 or more, got {values['max_misses']!r}")
