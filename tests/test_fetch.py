@@ -225,3 +225,33 @@ def test_no_delay_is_paid_for_a_cache_hit(cache):
     )
 
     assert clock.slept == []
+
+
+# --- naming and single pages --------------------------------------------------
+
+
+def test_cache_file_naming_can_be_chosen(tmp_path):
+    session = FakeSession(FakeResponse(text="<p>saved</p>"))
+    fetcher = Fetcher(
+        tmp_path, session=session, sleep=FakeClock(),
+        file_name=lambda number: f"{number:04d}.html",
+    )
+
+    fetcher.fetch("http://x/7", number=7)
+
+    assert (tmp_path / "0007.html").read_text(encoding="utf-8") == "<p>saved</p>"
+    assert not (tmp_path / "7.html").exists()
+
+
+def test_fetch_url_returns_the_page_without_caching_it(tmp_path):
+    session = FakeSession(FakeResponse(text="<p>book page</p>"))
+    fetcher = Fetcher(tmp_path, session=session, sleep=FakeClock())
+
+    assert fetcher.fetch_url("http://x/book") == "<p>book page</p>"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetch_url_gives_none_for_a_missing_page(tmp_path):
+    fetcher = Fetcher(tmp_path, session=FakeSession(FakeResponse(status_code=404)), sleep=FakeClock())
+
+    assert fetcher.fetch_url("http://x/gone") is None

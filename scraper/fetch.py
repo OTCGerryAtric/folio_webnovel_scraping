@@ -44,6 +44,7 @@ class Fetcher:
         timeout: float = 30.0,
         user_agent: str = DEFAULT_USER_AGENT,
         sleep=time.sleep,
+        file_name=None,
     ):
         self.cache_dir = Path(cache_dir)
         self.delay = delay
@@ -55,6 +56,7 @@ class Fetcher:
         self._sleep = sleep
         self._session = session
         self._has_hit_network = False
+        self._file_name = file_name or (lambda number: f"{number}.html")
 
     # -- public ------------------------------------------------------------
 
@@ -70,6 +72,10 @@ class Fetcher:
 
         self._write_cache(number, html)
         return FetchResult(number=number, url=url, html=html, from_cache=False)
+
+    def fetch_url(self, url: str) -> str | None:
+        """Fetch one page that is not part of the numbered run. Never cached."""
+        return self._fetch_over_network(url)
 
     # -- network -----------------------------------------------------------
 
@@ -141,7 +147,7 @@ class Fetcher:
     # -- cache -------------------------------------------------------------
 
     def _cache_path(self, number: int) -> Path:
-        return self.cache_dir / f"{number}.html"
+        return self.cache_dir / self._file_name(number)
 
     def _read_cache(self, number: int) -> str | None:
         if self.refresh:
@@ -158,3 +164,8 @@ class Fetcher:
         path = self._cache_path(number)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
+
+
+def fetch_page(url: str) -> str | None:
+    """Fetch a single page, such as a book's main page, politely and uncached."""
+    return Fetcher(cache_dir=Path(), delay=0).fetch_url(url)

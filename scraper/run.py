@@ -13,7 +13,7 @@ from scraper.extract import Page, extract_page
 from scraper.fetch import Fetcher
 
 
-def build_fetcher(settings: Settings) -> Fetcher:
+def build_fetcher(settings: Settings, file_name=None) -> Fetcher:
     return Fetcher(
         cache_dir=settings.cache_path,
         delay=settings.delay,
@@ -21,6 +21,7 @@ def build_fetcher(settings: Settings) -> Fetcher:
         backoff=settings.backoff,
         refresh=settings.refresh,
         timeout=settings.timeout,
+        file_name=file_name,
     )
 
 
