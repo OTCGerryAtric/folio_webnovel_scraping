@@ -15,13 +15,24 @@ from pathlib import Path
 
 from scraper.assemble import SUPPORTED_FORMATS, write_document
 from scraper.boilerplate import clean_pages
+from scraper.commands import COMMANDS, run_command
 from scraper.config import build_settings, load_site_config
 from scraper.overlap import trim_overlap
+from scraper.reporting import report_removals, report_trims, warn_if_emptied
 from scraper.retitle import apply_titles, load_titles
 from scraper.run import build_fetcher, collect_pages
 
 EXAMPLES = """
-examples (PowerShell):
+books (PowerShell):
+
+  python scrape.py add https://example.com/novel/some-book --name "Some Book"
+  python scrape.py status "Some Book"
+  python scrape.py update some          # any unambiguous start of the name
+
+  python scrape.py <command> --help     # add, books, status, download,
+                                        # clean, review, build, update
+
+one-off runs:
 
   # fifty numbered pages into one Markdown file
   python scrape.py --url "https://example.com/page-{n}" --start 1 --end 50 --out book.md
@@ -35,7 +46,7 @@ examples (PowerShell):
   # reuse a saved source
   python scrape.py --site sites/example.toml --out book.txt
 
-The output format follows the extension: .md, .txt or .epub.
+The output format follows the extension: .md, .txt, .pdf or .epub.
 """
 
 
@@ -140,6 +151,10 @@ def parse_args(argv: list[str] | None = None) -> dict:
 
 
 def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in COMMANDS:
+        return run_command(argv)
+
     args = parse_args(argv)
     site = args.pop("site", None)
 
@@ -171,17 +186,17 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
         threshold=settings.dedupe_threshold,
         patterns=settings.strip_patterns,
     )
-    _report_removals(removals, collected, report)
+    report_removals(removals, collected, report)
 
     if settings.trim_overlap:
         pages, trims = trim_overlap(pages, window=settings.overlap_window)
-        _report_trims(trims, report)
+        report_trims(trims, report)
 
     if titles:
         pages, replaced = apply_titles(pages, titles)
         report(f"Titles: {replaced} of {len(pages)} page(s) took a supplied title.")
 
-    _warn_if_emptied(pages, report)
+    warn_if_emptied(pages, report)
 
     try:
         written = write_document(pages, _fill_out_name(settings.out, pages), title=settings.title)
@@ -191,37 +206,6 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
 
     report(f"Wrote {len(pages)} page(s) to {written}")
     return 0
-
-
-def _report_removals(removals, total: int, report) -> None:
-    """Say what was stripped. Text disappearing silently is how trust goes."""
-    if not removals:
-        return
-    report(f"Removed {len(removals)} boilerplate block(s):")
-    for removal in removals:
-        report(f"  on {removal.pages}/{total} pages: {removal.text}")
-
-
-def _report_trims(trims, report) -> None:
-    """Say which pages opened with a recap, and what went with it."""
-    if not trims:
-        return
-    blocks = sum(trim.blocks for trim in trims)
-    report(f"Trimmed {blocks} repeated block(s) from the start of {len(trims)} page(s):")
-    for trim in trims:
-        report(f"  page {trim.number}: {trim.text}")
-
-
-def _warn_if_emptied(pages, report) -> None:
-    """An emptied page means the threshold was too aggressive. Say so."""
-    emptied = [p.number for p in pages if p.is_empty]
-    if emptied:
-        report(
-            f"warning: {len(emptied)} page(s) were left with no text "
-            f"(first: {emptied[0]}). Try --dedupe-threshold with a higher "
-            f"value, or --no-dedupe. Re-running costs nothing: the pages "
-            f"are cached."
-        )
 
 
 def _fill_out_name(out: str, pages) -> str:
