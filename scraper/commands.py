@@ -21,7 +21,10 @@ from scraper.book import (
 )
 from scraper.bookpage import parse_book_page, site_phrase
 from scraper.fetch import fetch_page
+from scraper.reporting import report_removals, report_trims, warn_if_emptied
+from scraper.review import repeated_sentences
 from scraper.run import build_fetcher
+from scraper.stages import build, clean, download, read_cleaned, site_latest
 
 COMMANDS = ("add", "books", "status", "download", "clean", "review", "build", "update")
 
@@ -48,6 +51,32 @@ def build_parser() -> argparse.ArgumentParser:
     status = sub.add_parser("status", help="what is downloaded, cleaned and built")
     status.add_argument("book")
     status.add_argument("--offline", action="store_true", help="do not check the site")
+
+    down = sub.add_parser("download", help="fetch the chapters not yet downloaded")
+    down.add_argument("book")
+    down.add_argument("--start", type=int, help="first chapter (default: from book.toml, else 1)")
+    down.add_argument("--end", type=int, help="last chapter (default: the site's latest)")
+    down.add_argument("--refresh", action="store_true", default=None, help="fetch held chapters again")
+
+    cleaner = sub.add_parser("clean", help="rebuild the cleaned chapters from the raw pages")
+    cleaner.add_argument("book")
+    cleaner.add_argument("--no-dedupe", dest="dedupe", action="store_false", default=None,
+                         help="keep blocks that repeat across chapters")
+
+    review = sub.add_parser("review", help="list sentences repeated across chapters")
+    review.add_argument("book")
+    review.add_argument("--min-chapters", type=int, default=4,
+                        help="how many chapters a sentence must appear in (default 4)")
+
+    builder = sub.add_parser("build", help="join the cleaned chapters into one file")
+    builder.add_argument("book")
+    builder.add_argument("--format", default="epub", help="epub, pdf, md or txt (default epub)")
+    builder.add_argument("--from", dest="start", type=int, help="first chapter")
+    builder.add_argument("--to", dest="end", type=int, help="last chapter")
+
+    update = sub.add_parser("update", help="download what is new, clean, and build the new chapters")
+    update.add_argument("book")
+    update.add_argument("--format", default="epub", help="epub, pdf, md or txt (default epub)")
 
     return parser
 
@@ -130,8 +159,6 @@ def _books(args, root, report, **_):
 
 
 def _status(args, root, get_page, report, **_):
-    from scraper.stages import site_latest
-
     book = find_book(args.book, root)
     settings = book.settings()
     raw, cleaned = book.raw_numbers(), book.cleaned_numbers()
@@ -163,8 +190,88 @@ def _status(args, root, get_page, report, **_):
     return 0
 
 
+# --- the stages ---------------------------------------------------------------
+
+
+def _download(args, root, fetcher_factory, get_page, report, **_):
+    book = find_book(args.book, root)
+    settings = book.settings(start=args.start, end=args.end, refresh=args.refresh)
+    fetched = _fetch_new(book, settings, fetcher_factory, get_page, report)
+    report(f"Downloaded {len(fetched)} chapter(s). Held: {describe_ranges(book.raw_numbers())}")
+    return 0
+
+
+def _clean(args, root, report, **_):
+    book = find_book(args.book, root)
+    _run_clean(book, book.settings(dedupe=args.dedupe), report)
+    return 0
+
+
+def _review(args, root, report, **_):
+    book = find_book(args.book, root)
+    pages = read_cleaned(book)
+    if not pages:
+        raise ValueError(f"{book.name} has no cleaned chapters. Run clean first.")
+    repeats = repeated_sentences(pages, min_chapters=args.min_chapters)
+    if not repeats:
+        report(f"No sentence appears in {args.min_chapters} or more chapters.")
+        return 0
+    report(f"Sentences in {args.min_chapters}+ of {len(pages)} chapters (first chapter in brackets):")
+    for repeat in repeats:
+        report(f"  {repeat.chapters:5}  {repeat.text}  [{repeat.first}]")
+    report("Anything here that is not the story can go in remove_phrases in book.toml.")
+    return 0
+
+
+def _build(args, root, report, **_):
+    book = find_book(args.book, root)
+    path = build(book, book.settings(), fmt=args.format, start=args.start, end=args.end)
+    count = len(read_cleaned(book, args.start, args.end))
+    report(f"Wrote {count} chapter(s) to {path}")
+    return 0
+
+
+def _update(args, root, fetcher_factory, get_page, report, **_):
+    book = find_book(args.book, root)
+    settings = book.settings()
+    fetched = _fetch_new(book, settings, fetcher_factory, get_page, report)
+    if not fetched:
+        report(f"Up to date: no new chapters. Held: {describe_ranges(book.raw_numbers())}")
+        return 0
+    _run_clean(book, settings, report)
+    path = build(book, settings, fmt=args.format, start=min(fetched), end=max(fetched))
+    report(f"Wrote {len(fetched)} new chapter(s) to {path}")
+    return 0
+
+
+def _fetch_new(book, settings, fetcher_factory, get_page, report) -> list[int]:
+    latest = None
+    if settings.end is None:
+        latest = site_latest(settings, get_page)
+        if latest:
+            report(f"The site lists {latest} chapters.")
+    return download(book, settings, fetcher_factory(settings), latest=latest, log=report)
+
+
+def _run_clean(book, settings, report) -> None:
+    result = clean(book, settings)
+    if result.skipped:
+        report(f"Skipped {len(result.skipped)} raw page(s) with no text: {describe_ranges(result.skipped)}")
+    report_removals(result.removals, len(result.pages), report)
+    report_trims(result.trims, report)
+    if result.retitled:
+        report(f"Titles: {result.retitled} chapter(s) took a title from titles.json.")
+    warn_if_emptied(result.pages, report)
+    report(f"Cleaned {len(result.pages)} chapter(s) into {book.cleaned_dir}")
+
+
 _HANDLERS = {
     "add": _add,
     "books": _books,
     "status": _status,
+    "download": _download,
+    "clean": _clean,
+    "review": _review,
+    "build": _build,
+    "update": _update,
 }

@@ -4,6 +4,7 @@ import pytest
 from scrape import main
 from scraper.book import Book
 from scraper.commands import run_command
+from scraper.fetch import FetchResult
 
 PAGE_URL = "https://freewebnovel.com/novel/weakest-beast-tamer-gets-all-sss-dragons"
 
@@ -148,3 +149,117 @@ def test_scrape_main_hands_commands_over(tmp_path, monkeypatch, capsys):
 
     assert code == 0
     assert "scrape.py add" in capsys.readouterr().err
+
+
+# --- the stages -------------------------------------------------------------
+
+
+def chapter(text, title="Chapter"):
+    return f"<html><head><title>{title}</title></head><body><div id='c'><p>{text}</p></div></body></html>"
+
+
+class StubFetcher:
+    def __init__(self, book, pages):
+        self.book, self.pages = book, pages
+
+    def fetch(self, url, number):
+        html = self.pages.get(number)
+        if html is None:
+            return None
+        self.book.raw_path(number).write_text(html, encoding="utf-8")
+        return FetchResult(number=number, url=url, html=html, from_cache=False)
+
+
+def added_book(tmp_path, latest=3):
+    page = BOOK_PAGE.replace("chapter-1274", f"chapter-{latest}")
+    run(["add", PAGE_URL, "--name", "B"], tmp_path, {PAGE_URL: page})
+    book = Book(tmp_path / "B")
+    with book.config_path.open("a", encoding="utf-8") as handle:
+        handle.write('content_selector = "#c"\ndelay = 0.0\n')
+    return book, {PAGE_URL: page}
+
+
+def test_download_fetches_up_to_the_sites_latest_chapter(tmp_path):
+    book, site = added_book(tmp_path, latest=3)
+    pages = {n: chapter(f"Text {n}.") for n in range(1, 6)}
+
+    code, out = run(["download", "B"], tmp_path, site, lambda s: StubFetcher(book, pages))
+
+    assert code == 0
+    assert book.raw_numbers() == [1, 2, 3]
+    assert "Downloaded 3 chapter(s)" in out
+
+
+def test_clean_reports_what_it_removed(tmp_path):
+    book, _ = added_book(tmp_path)
+    for n in range(1, 4):
+        book.raw_path(n).write_text(chapter(f"Text {n}. Read more at freewebnovel"), encoding="utf-8")
+
+    code, out = run(["clean", "B"], tmp_path)
+
+    assert code == 0
+    assert book.cleaned_numbers() == [1, 2, 3]
+    assert "sentence(s) matching" in out
+    assert "Cleaned 3 chapter(s)" in out
+
+
+def test_review_lists_repeated_sentences(tmp_path):
+    book, _ = added_book(tmp_path)
+    for n in range(1, 6):
+        book.raw_path(n).write_text(
+            chapter(f"Story number {n} continues. Give it a power stone, please!"), encoding="utf-8"
+        )
+    run(["clean", "B", "--no-dedupe"], tmp_path)
+
+    code, out = run(["review", "B", "--min-chapters", "3"], tmp_path)
+
+    assert code == 0
+    assert "Give it a power stone, please!" in out
+
+
+def test_review_before_clean_says_to_clean(tmp_path):
+    added_book(tmp_path)
+
+    code, out = run(["review", "B"], tmp_path)
+
+    assert code == 2
+    assert "clean" in out
+
+
+def test_build_writes_the_whole_book_by_default(tmp_path):
+    book, _ = added_book(tmp_path)
+    for n in range(1, 4):
+        book.raw_path(n).write_text(chapter(f"Text {n}."), encoding="utf-8")
+    run(["clean", "B"], tmp_path)
+
+    code, out = run(["build", "B", "--format", "md"], tmp_path)
+
+    assert code == 0
+    assert (book.output_dir / "B 1-3.md").exists()
+    assert "Wrote 3 chapter(s)" in out
+
+
+def test_update_builds_just_the_new_chapters(tmp_path):
+    book, site = added_book(tmp_path, latest=4)
+    pages = {n: chapter(f"Text {n}.") for n in range(1, 5)}
+    for n in (1, 2):
+        book.raw_path(n).write_text(pages[n], encoding="utf-8")
+
+    code, out = run(["update", "B", "--format", "md"], tmp_path, site, lambda s: StubFetcher(book, pages))
+
+    assert code == 0
+    assert [p.name for p in book.outputs()] == ["B 3-4.md"]
+    assert book.cleaned_numbers() == [1, 2, 3, 4]
+
+
+def test_update_with_nothing_new_says_so_and_builds_nothing(tmp_path):
+    book, site = added_book(tmp_path, latest=2)
+    pages = {n: chapter(f"Text {n}.") for n in range(1, 3)}
+    for n in (1, 2):
+        book.raw_path(n).write_text(pages[n], encoding="utf-8")
+
+    code, out = run(["update", "B"], tmp_path, site, lambda s: StubFetcher(book, pages))
+
+    assert code == 0
+    assert "Up to date" in out
+    assert book.outputs() == []
