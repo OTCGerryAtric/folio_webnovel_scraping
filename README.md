@@ -23,9 +23,74 @@ If activation is blocked by execution policy, either run
 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` for that
 session, or skip activation and call `.\.venv\Scripts\python.exe` directly.
 
+## Books
+
+Each book lives in its own folder under `books/`:
+
+```
+books\
+  Weakest Beast Tamer\
+    book.toml       settings: title, author, URL pattern, phrases to remove
+    01 Raw\         0001.html ...  pages exactly as downloaded
+    02 Cleaned\     0001.md ...    one cleaned chapter per file
+    03 Output\      Weakest Beast Tamer 1228-1274.epub ...
+```
+
+The whole `books` folder stays out of git.
+
+Add a book from its main page on the site. The title, author, chapter URL
+pattern and latest chapter are read from the page:
+
+```powershell
+python scrape.py add https://freewebnovel.com/novel/shadow-slave --name "Shadow Slave"
+```
+
+A site that doesn't publish those details can be added by hand:
+`add --url "https://example.com/book/chapter-{n}" --title "Some Book"`.
+
+Then, naming the book by its folder - any unambiguous start of the name
+will do:
+
+| Command | Does |
+|---------|------|
+| `status shadow` | What is downloaded, cleaned and built, and how many chapters are new on the site |
+| `download shadow` | Fetches chapters not yet in `01 Raw`. Stop with Ctrl-C and run again to carry on |
+| `clean shadow` | Rebuilds `02 Cleaned` from `01 Raw` and reports everything it removed |
+| `review shadow` | Lists sentences that recur across many chapters, to spot junk |
+| `build shadow` | Joins every cleaned chapter into an epub (`--format pdf/md/txt`, `--from`/`--to`) |
+| `update shadow` | The everyday one: download what's new, clean, and build just the new chapters |
+| `books` | Lists the books |
+
+`clean` is local and quick, so re-run it whenever you change `book.toml`.
+It replaces everything in `02 Cleaned`, so a hand edit there won't last -
+put lasting fixes in `book.toml` as rules.
+
+### Removing watermarks
+
+Sites splice their name into the text in ever-changing wording, often onto
+the end of a real paragraph. `remove_phrases` in `book.toml` lists regular
+expressions; any *sentence* matching one is removed and the rest of its
+paragraph kept. `add` starts the list with a pattern for the site's name,
+and you add more:
+
+```toml
+remove_phrases = ['f[\W_]*r[\W_]*e ...', 'n0vel1st', 'Give it a power stone']
+```
+
+Matching ignores case. Use single quotes so backslashes reach the pattern
+intact. Run `review` to find more, add them, and `clean` again.
+
+### Chapter titles
+
+Titles lose the decoration the site adds - the book's name in front, the
+site's name after a `|`, and a doubled chapter number - leaving the
+author's chapter name whole. To replace titles outright, put a
+`titles.json` of `{"number": "title"}` in the book's folder.
+
 ## Usage
 
-Fifty numbered pages into one Markdown file:
+For a one-off run that doesn't need a book folder, pass everything on the
+command line. Fifty numbered pages into one Markdown file:
 
 ```powershell
 python scrape.py --url "https://example.com/page-{n}" --start 1 --end 50 --out book.md
@@ -180,6 +245,7 @@ repetition, check what your pages actually start with and add a
 | `--no-trim-overlap` | Keep the recap a page opens with |
 | `--overlap-window` | Blocks at the end of a page a recap may restate (default 15) |
 | `--title` | Title for the finished document |
+| `--titles` | JSON file of page number to title, used instead of the scraped titles |
 | `--delay` | Seconds between requests (default 1.5) |
 | `--max-misses` | Consecutive empty pages that end an open-ended run (default 3) |
 | `--max-retries` | Attempts per page (default 3) |
@@ -224,5 +290,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-184 tests, none of which touch the network. The design notes are in
+276 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.
