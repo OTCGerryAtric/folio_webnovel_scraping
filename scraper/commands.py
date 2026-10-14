@@ -94,7 +94,8 @@ def run_command(
     handler = _HANDLERS[args.command]
     try:
         return handler(args, root=root, fetcher_factory=fetcher_factory, get_page=get_page, report=report)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
+        # OSError: on Windows, an epub open in a reader cannot be replaced.
         report(f"error: {exc}")
         return 2
 
@@ -115,12 +116,13 @@ def _add(args, root, get_page, report, **_):
             raise ValueError(f"Could not fetch {args.page_url}")
         info = parse_book_page(html, args.page_url)
         title = info.title
+        phrase = site_phrase(args.page_url)
         values = {
             "title": info.title,
             "author": info.author,
             "source": args.page_url,
             "url_template": info.url_template,
-            "remove_phrases": [site_phrase(args.page_url)],
+            "remove_phrases": [phrase] if phrase else None,
         }
         by = f", by {info.author}" if info.author else ""
         state = f" ({info.status})" if info.status else ""
@@ -128,6 +130,11 @@ def _add(args, root, get_page, report, **_):
         if info.latest:
             updated = f", last updated {info.updated}" if info.updated else ""
             summary += f"\n  {info.latest} chapters on the site{updated}"
+        summary += f"\n  chapters at {info.url_template}"
+        if phrase:
+            summary += "\n  sentences naming the site will be removed (remove_phrases in book.toml)"
+        else:
+            summary += "\n  the site's name is too short to remove safely; add remove_phrases by hand"
     else:
         raise ValueError("Give the book page URL, or --url with a {n} template and --title.")
 

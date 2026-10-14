@@ -19,6 +19,9 @@ from scraper.config import PLACEHOLDER
 
 _LAST_NUMBER_RE = re.compile(r"\d+(?!.*\d)")
 
+# Shorter site names match too much ordinary text to remove sentences safely.
+_MIN_SITE_NAME = 5
+
 
 @dataclass(frozen=True)
 class BookInfo:
@@ -68,12 +71,17 @@ def chapter_from_url(url: str | None) -> int | None:
     return int(match.group()) if match else None
 
 
-def site_phrase(url: str) -> str:
+def site_phrase(url: str) -> str | None:
     """A pattern for the site's own name, however the watermark spaces it.
 
     `freewebnovel.com` gives a pattern matching "freewebnovel", "Free Web
-    Novel" and "freewebnovel.com" alike.
+    Novel" and "freewebnovel.com" alike. The name is the label before the
+    domain ending, so `m.` or `s2.` subdomains are ignored. A name too short
+    to be safe gives None: a pattern for "ab" would match ordinary words.
     """
-    host = (urlparse(url).hostname or "").removeprefix("www.")
-    letters = [c for c in host.split(".")[0] if c.isalnum()]
+    labels = (urlparse(url).hostname or "").split(".")
+    name = labels[-2] if len(labels) >= 2 else labels[0]
+    letters = [c for c in name if c.isalnum()]
+    if len(letters) < _MIN_SITE_NAME:
+        return None
     return r"[\W_]*".join(re.escape(c) for c in letters)

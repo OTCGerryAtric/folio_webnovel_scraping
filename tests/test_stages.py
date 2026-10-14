@@ -254,3 +254,18 @@ def test_build_rejects_an_unknown_format(tmp_path):
 
     with pytest.raises(ValueError, match="Unsupported"):
         build(book, book.settings(), fmt="docx")
+
+
+def test_a_selector_that_finds_nothing_stops_a_bounded_download(tmp_path):
+    book = make_book(tmp_path)
+    book.config_path.write_text(
+        book.config_path.read_text(encoding="utf-8").replace('"#c"', '"#nothing"'), encoding="utf-8"
+    )
+    fetcher = StubFetcher(book, {n: chapter(n) for n in range(1, 8)})
+    lines = []
+
+    got = download(book, book.settings(), fetcher, latest=7, log=lines.append)
+
+    assert got == []
+    assert fetcher.asked == [1, 2, 3]
+    assert any("content_selector" in line for line in lines)

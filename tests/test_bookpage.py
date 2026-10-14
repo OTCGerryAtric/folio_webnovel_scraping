@@ -72,3 +72,14 @@ def test_the_site_phrase_matches_the_ways_the_name_is_written():
     for text in ("freewebnovel", "Free Web Novel", "freewebnovel.com", "FreeWebNovel"):
         assert pattern.search(text), text
     assert not pattern.search("a free novel on the web")
+
+
+def test_the_site_phrase_comes_from_the_site_name_not_a_subdomain():
+    pattern = re.compile(site_phrase("https://m.wuxiaworld.co/novel/x"), re.IGNORECASE)
+
+    assert pattern.search("Read at WuxiaWorld")
+    assert not pattern.search("my mother came home")
+
+
+def test_a_site_name_too_short_to_be_safe_gives_no_phrase():
+    assert site_phrase("https://ab.co/novel/x") is None

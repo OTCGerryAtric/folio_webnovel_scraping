@@ -19,7 +19,8 @@ from scraper.extract import Page
 # Shorter than this and a sentence recurs in any book by chance.
 _MIN_LENGTH = 15
 
-_SPLIT_RE = re.compile(r'(?<=[.!?"”’…])\s+')
+# Sentence ends as `phrases` sees them, so the report and the removal agree.
+_SPLIT_RE = re.compile(r'(?<=[.!?"”’…*_)\]])\s+')
 _NOT_PLAIN_RE = re.compile(r"[^a-z0-9 ]+")
 _WHITESPACE_RE = re.compile(r"\s+")
 _TYPOGRAPHIC = str.maketrans({

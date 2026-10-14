@@ -290,5 +290,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-276 tests, none of which touch the network. The design notes are in
+284 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.

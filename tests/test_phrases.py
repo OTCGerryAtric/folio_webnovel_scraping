@@ -79,3 +79,12 @@ def test_removals_count_sentences_and_pages():
 def test_an_invalid_pattern_is_reported_clearly():
     with pytest.raises(ValueError, match="remove phrase"):
         remove_phrases([page("x")], ["(unclosed"])
+
+
+def test_a_watermark_in_emphasis_or_brackets_before_the_story_takes_only_itself():
+    pages, _ = remove_phrases(
+        [page("*Visit freewebnovel.* He ran home."), page("(Read more at freewebnovel.) She ran.", 2)],
+        [SITE],
+    )
+
+    assert [p.body for p in pages] == ["He ran home.", "She ran."]

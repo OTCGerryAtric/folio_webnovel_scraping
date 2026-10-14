@@ -263,3 +263,25 @@ def test_update_with_nothing_new_says_so_and_builds_nothing(tmp_path):
     assert code == 0
     assert "Up to date" in out
     assert book.outputs() == []
+
+
+def test_add_seeds_no_phrase_for_a_site_name_too_short_to_be_safe(tmp_path):
+    code, out = run(["add", "https://ab.co/novel/b", "--name", "B"], tmp_path, {"https://ab.co/novel/b": BOOK_PAGE})
+
+    assert code == 0
+    assert Book(tmp_path / "B").settings().remove_phrases == []
+    assert "remove_phrases" in out
+
+
+def test_a_file_in_use_is_a_clear_error_not_a_crash(tmp_path, monkeypatch):
+    added_book(tmp_path)
+
+    def locked(*args, **kwargs):
+        raise PermissionError(13, "The file is in use by another program", "B 1-3.epub")
+
+    monkeypatch.setattr("scraper.commands.build", locked)
+
+    code, out = run(["build", "B"], tmp_path)
+
+    assert code == 2
+    assert "error:" in out and "in use" in out

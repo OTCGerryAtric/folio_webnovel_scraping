@@ -36,7 +36,7 @@ def download(book: Book, settings: Settings, fetcher, latest: int | None = None,
     held = set() if settings.refresh else set(book.raw_numbers())
     end = settings.end if settings.end is not None else latest
     fetched: list[int] = []
-    misses = 0
+    misses = blanks = 0
     number = settings.start
 
     try:
@@ -47,13 +47,23 @@ def download(book: Book, settings: Settings, fetcher, latest: int | None = None,
                     if result is not None:
                         # A "not found" page served as a normal one: not a chapter.
                         book.raw_path(number).unlink(missing_ok=True)
+                        blanks += 1
                     misses += 1
                     report(f"  {number}: {'not found' if result is None else 'no text found'}")
                     if end is None and misses >= settings.max_misses:
                         report(f"Stopping: {misses} pages in a row came back empty.")
                         break
+                    # Pages that arrive but hold no text, one after another, mean
+                    # the content selector no longer fits the site - carrying on
+                    # would fetch and throw away every page up to the end.
+                    if end is not None and blanks >= settings.max_misses:
+                        report(
+                            f"Stopping: {blanks} pages in a row arrived with no text. "
+                            f"Check content_selector in {book.config_path}."
+                        )
+                        break
                 else:
-                    misses = 0
+                    misses = blanks = 0
                     fetched.append(number)
                     report(f"  {number}{f'/{end}' if end else ''}: downloaded")
             number += settings.step

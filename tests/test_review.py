@@ -52,3 +52,9 @@ def test_report_text_is_ascii_safe():
 
     assert text == "\"It's not enough at all...\""
     assert text.isascii()
+
+
+def test_a_sentence_after_an_emphasised_one_is_counted_on_its_own():
+    pages = [page(n, f"*Chapter {n} opens with a shout.* {NOTE}") for n in range(1, 3)]
+
+    assert [r.text for r in repeated_sentences(pages, min_chapters=2)] == [NOTE]

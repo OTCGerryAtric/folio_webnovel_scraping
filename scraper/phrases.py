@@ -19,8 +19,10 @@ from scraper.boilerplate import Removal
 from scraper.extract import Page
 
 # Split after sentence-ending punctuation, keeping the whitespace so a hard
-# line break between kept sentences survives.
-_SPLIT_RE = re.compile(r'(?<=[.!?"”’…])(\s+)')
+# line break between kept sentences survives. Closing emphasis markers and
+# brackets end a sentence too: sites often set a watermark in italics or
+# parentheses at the front of a story paragraph.
+_SPLIT_RE = re.compile(r'(?<=[.!?"”’…*_)\]])(\s+)')
 
 
 def remove_phrases(pages: list[Page], patterns) -> tuple[list[Page], list[Removal]]:
