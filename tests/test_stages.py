@@ -3,7 +3,7 @@ import pytest
 
 from scraper.book import Book
 from scraper.fetch import FetchResult
-from scraper.stages import download, site_latest
+from scraper.stages import build, clean, download, read_cleaned, site_latest
 
 
 def chapter(text, title="T"):
@@ -139,3 +139,118 @@ def test_no_source_or_no_answer_means_no_latest_chapter(tmp_path):
     with_source = make_book(tmp_path / "other", 'source = "http://x/book"\n')
     assert site_latest(with_source.settings(), lambda url: None) is None
     assert site_latest(with_source.settings(), lambda url: "<html></html>") is None
+
+
+# --- clean ------------------------------------------------------------------
+
+
+def hold(book, chapters):
+    """Put raw pages straight into the raw folder."""
+    for number, html in chapters.items():
+        book.raw_path(number).write_text(html, encoding="utf-8")
+
+
+def test_clean_writes_one_file_per_chapter_with_its_title(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {1: chapter("One.", "Book - Chapter 1 - 1 - Start | Free Web Novel"),
+                2: chapter("Two.", "Book - Chapter 2 - Next | Free Web Novel")})
+
+    clean(book, book.settings())
+
+    assert book.cleaned_numbers() == [1, 2]
+    assert book.cleaned_path(1).read_text(encoding="utf-8") == "# Chapter 1 - Start\n\nOne.\n"
+
+
+def test_clean_removes_phrases_and_reports_them(tmp_path):
+    book = make_book(tmp_path, "remove_phrases = ['freewebnovel']\n")
+    hold(book, {1: chapter("He ran. Read more at freewebnovel"), 2: chapter("Fine.")})
+
+    result = clean(book, book.settings())
+
+    assert read_cleaned(book)[0].body == "He ran."
+    assert result.removals[0].pages == 1
+
+
+def test_clean_drops_furniture_repeated_on_most_chapters(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Story {n}.</p><p>Prev Chapter") for n in range(1, 5)})
+
+    result = clean(book, book.settings())
+
+    assert [p.body for p in read_cleaned(book)] == [f"Story {n}." for n in range(1, 5)]
+    assert result.removals
+
+
+def test_a_chapter_with_no_text_is_skipped_and_reported(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {1: chapter("One."), 2: NOT_FOUND})
+
+    result = clean(book, book.settings())
+
+    assert result.skipped == [2]
+    assert book.cleaned_numbers() == [1]
+
+
+def test_clean_leaves_no_stale_chapters_behind(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {1: chapter("One."), 2: chapter("Two.")})
+    clean(book, book.settings())
+
+    book.raw_path(2).unlink()
+    clean(book, book.settings())
+
+    assert book.cleaned_numbers() == [1]
+
+
+def test_a_titles_file_in_the_book_folder_wins(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {1: chapter("One.", "Chapter 1 - Start")})
+    book.titles_path.write_text('{"1": "Chapter 1 - The Real Start"}', encoding="utf-8")
+
+    result = clean(book, book.settings())
+
+    assert read_cleaned(book)[0].title == "Chapter 1 - The Real Start"
+    assert result.retitled == 1
+
+
+# --- build ------------------------------------------------------------------
+
+
+def test_build_joins_the_cleaned_chapters_named_by_book_and_range(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Text {n}.", f"Chapter {n}") for n in range(1, 4)})
+    clean(book, book.settings())
+
+    path = build(book, book.settings(), fmt="md")
+
+    assert path == book.output_dir / "B 1-3.md"
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("# Book\n")
+    assert "## Chapter 2\n\nText 2." in text
+
+
+def test_build_can_take_a_range(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {n: chapter(f"Text {n}.") for n in range(1, 5)})
+    clean(book, book.settings())
+
+    path = build(book, book.settings(), fmt="md", start=2, end=3)
+
+    assert path.name == "B 2-3.md"
+    assert "Text 1." not in path.read_text(encoding="utf-8")
+
+
+def test_build_with_nothing_cleaned_says_to_clean_first(tmp_path):
+    book = make_book(tmp_path)
+
+    with pytest.raises(ValueError, match="clean"):
+        build(book, book.settings())
+
+
+def test_build_rejects_an_unknown_format(tmp_path):
+    book = make_book(tmp_path)
+    hold(book, {1: chapter("One.")})
+    clean(book, book.settings())
+
+    with pytest.raises(ValueError, match="Unsupported"):
+        build(book, book.settings(), fmt="docx")
