@@ -38,6 +38,17 @@ until three pages in a row come back empty:
 python scrape.py --url "https://example.com/page-{n}" --out book.md
 ```
 
+When you don't know where the series ends, stop at the first missing page
+with `--max-misses 1` and let the file name itself after what was actually
+collected. `{first}` and `{last}` in `--out` become the first and last page
+numbers:
+
+```powershell
+python scrape.py --url "https://example.com/page-{n}" --start 1228 --max-misses 1 --out "book-{first}-{last}.epub"
+```
+
+That writes `book-1228-1264.epub` if page 1265 is the first one missing.
+
 The output format follows the extension — `.md`, `.txt`, `.pdf` or `.epub`:
 
 ```powershell
@@ -117,12 +128,48 @@ block, so `^` anchors to a line start.
 Because every page is cached, re-running to tune any of this costs nothing
 and makes no new requests.
 
+### Removing the recap at the top of a page
+
+Serialised sources often open a new instalment by restating how the last one
+ended, so the same passage lands in your document twice. Repetition can't
+catch it — it appears on two pages, not most of them — and it's rarely
+copied verbatim: it gets reworded and re-paragraphed on the way in.
+
+So each page is compared, a sentence at a time, against the tail of the page
+before it. Leading blocks whose every sentence turns up there are dropped,
+and the walk stops at the first block that doesn't, which keeps it to the
+opening of a page. Headings are stepped over rather than stopping it, so a
+chapter title can't hide the recap behind it.
+
+What went is reported:
+
+```
+Trimmed 284 repeated block(s) from the start of 139 page(s):
+  page 2: ren kept his head high as he descended from the altar his parents had sold ev...
+  page 3: the path home had never felt so long
+```
+
+- `--overlap-window 30` — look further back for the restated passage
+  (default 15 blocks)
+- `--no-trim-overlap` — keep the recap
+
+A page that is *nothing but* a recap is left alone: that's more likely a
+duplicate fetch than a page to delete, and you should see it.
+
+**Strip the furniture first.** This runs after the two mechanisms above, and
+it only ever trims from the *start* of a page. A leftover furniture line —
+`Chapter 12 - The Tunnels`, a navigation strip — sits between the recap and
+the top of the page and stops the walk before it begins, so nothing is
+trimmed at all. If the report says nothing was trimmed but you can see
+repetition, check what your pages actually start with and add a
+`--strip-regex` for it. Headings are the exception: those are stepped over.
+
 ### Options
 
 | Flag | Meaning |
 |------|---------|
 | `--url` | URL containing `{n}` |
-| `--out` | Output file; `.md`, `.txt`, `.pdf` or `.epub` |
+| `--out` | Output file; `.md`, `.txt`, `.pdf` or `.epub`. `{first}`/`{last}` become the page range collected |
 | `--start`, `--end`, `--step` | Which numbers to walk (default: from 1, by 1, no end) |
 | `--selector` | CSS selector for the main text |
 | `--title-selector` | CSS selector for each page's title |
@@ -130,6 +177,8 @@ and makes no new requests.
 | `--no-dedupe` | Keep blocks that repeat across pages |
 | `--dedupe-threshold` | Fraction of pages a block must appear on (default 0.6) |
 | `--strip-regex` | Drop any block matching this pattern; repeatable |
+| `--no-trim-overlap` | Keep the recap a page opens with |
+| `--overlap-window` | Blocks at the end of a page a recap may restate (default 15) |
 | `--title` | Title for the finished document |
 | `--delay` | Seconds between requests (default 1.5) |
 | `--max-misses` | Consecutive empty pages that end an open-ended run (default 3) |
@@ -175,5 +224,5 @@ python scrape.py --site sites/example.toml --end 20 --out book.md
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-134 tests, none of which touch the network. The design notes are in
+184 tests, none of which touch the network. The design notes are in
 `docs/superpowers/specs/`.

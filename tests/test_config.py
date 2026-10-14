@@ -170,3 +170,31 @@ strip_patterns = ['^Chapter \\d+']
     settings = build_settings({"out": "b.md"}, load_site_config(path))
 
     assert settings.strip_patterns == [r"^Chapter \d+"]
+
+
+# --- overlap trimming -------------------------------------------------------
+
+
+def test_overlap_trimming_is_on_by_default():
+    settings = build_settings({"url_template": "http://x/{n}", "out": "b.md"})
+
+    assert settings.trim_overlap is True
+    assert settings.overlap_window == 15
+
+
+def test_a_site_file_can_switch_overlap_trimming_off(tmp_path):
+    site = tmp_path / "site.toml"
+    site.write_text(
+        'url_template = "http://x/{n}"\ntrim_overlap = false\n', encoding="utf-8"
+    )
+
+    settings = build_settings({"out": "b.md"}, load_site_config(site))
+
+    assert settings.trim_overlap is False
+
+
+def test_an_overlap_window_below_one_is_rejected():
+    with pytest.raises(ValueError, match="overlap-window"):
+        build_settings(
+            {"url_template": "http://x/{n}", "out": "b.md", "overlap_window": 0}
+        )

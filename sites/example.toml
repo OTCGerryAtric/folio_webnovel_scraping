@@ -41,3 +41,12 @@ dedupe_threshold = 0.6
 # matching one of these is dropped whole. Use TOML literal strings (single
 # quotes) so backslashes reach the regex intact.
 strip_patterns = ['^Chapter \d+ - ', '^Report broken chapter']
+
+# Many serialised sources open a page by restating how the one before it
+# ended. That recap is dropped, matched a sentence at a time so a reworded
+# or re-paragraphed one is still caught. Set trim_overlap = false to keep it.
+trim_overlap = true
+
+# How far back into the previous page a recap may reach, in blocks. Widen it
+# if recaps are being missed; narrow it if unrelated prose is being taken.
+overlap_window = 15

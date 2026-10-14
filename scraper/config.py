@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+from scraper.overlap import DEFAULT_WINDOW
+
 PLACEHOLDER = "{n}"
 
 DEFAULTS: dict = {
@@ -32,8 +34,11 @@ DEFAULTS: dict = {
     "dedupe": True,
     "dedupe_threshold": 0.6,
     "strip_patterns": [],
+    "trim_overlap": True,
+    "overlap_window": DEFAULT_WINDOW,
     "refresh": False,
     "title": None,
+    "titles": None,
     "cache_dir": None,
     "verbose": False,
 }
@@ -58,11 +63,14 @@ class Settings:
     dedupe: bool = True
     dedupe_threshold: float = 0.6
     strip_patterns: list[str] = field(default_factory=list)
+    trim_overlap: bool = True
+    overlap_window: int = DEFAULT_WINDOW
     max_retries: int = 3
     backoff: float = 2.0
     timeout: float = 30.0
     refresh: bool = False
     title: str | None = None
+    titles: str | None = None
     cache_dir: str | None = None
     verbose: bool = False
 
@@ -150,6 +158,10 @@ def _validate(values: dict) -> None:
         raise ValueError(
             f"--dedupe-threshold must be above 0 and at most 1, got {threshold!r}"
         )
+
+    window = values["overlap_window"]
+    if window is None or window < 1:
+        raise ValueError(f"--overlap-window must be 1 or more, got {window!r}")
 
     for pattern in values.get("strip_patterns") or []:
         try:

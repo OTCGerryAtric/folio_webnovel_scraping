@@ -161,3 +161,36 @@ def test_pages_are_numbered_in_the_footer(tmp_path):
     assert len(reader.pages) > 1, "fixture should overflow onto a second page"
     # A distinctive marker, so body text containing digits cannot pass this.
     assert "- 2 -" in re.sub(r"\s+", " ", reader.pages[1].extract_text())
+
+
+# --- nested emphasis --------------------------------------------------------
+
+
+def test_bold_italic_does_not_crash_the_pdf_writer(tmp_path):
+    # reportlab rejects mis-nested markup outright, so this raised before.
+    out = build(tmp_path, [page(1, "One", "***Basic Plant Development:*** and more.")])
+
+    assert "Basic Plant Development:" in pdf_text(out)
+
+
+def test_bold_italic_survives_alongside_other_emphasis(tmp_path):
+    out = build(
+        tmp_path,
+        [page(1, "One", "***both*** then *one* then **two** then plain.")],
+    )
+
+    assert "both then one then two then plain." in pdf_text(out)
+
+
+def test_a_whole_run_of_mixed_emphasis_builds(tmp_path):
+    pages = [
+        page(1, "One", "***a*** and **b** and *c*"),
+        page(2, "Two", "**bold with *it* inside**"),
+        page(3, "Three", "*it with **bold** inside*"),
+        page(4, "Four", r"literal \* star and ***both***"),
+    ]
+
+    out = build(tmp_path, pages)
+
+    text = pdf_text(out)
+    assert "literal * star" in text

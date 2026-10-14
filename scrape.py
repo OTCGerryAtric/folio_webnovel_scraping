@@ -16,6 +16,8 @@ from pathlib import Path
 from scraper.assemble import SUPPORTED_FORMATS, write_document
 from scraper.boilerplate import clean_pages
 from scraper.config import build_settings, load_site_config
+from scraper.overlap import trim_overlap
+from scraper.retitle import apply_titles, load_titles
 from scraper.run import build_fetcher, collect_pages
 
 EXAMPLES = """
@@ -26,6 +28,9 @@ examples (PowerShell):
 
   # keep going until the pages run out, using an explicit content selector
   python scrape.py --url "https://example.com/part-{n}" --selector "div.entry" --out book.epub
+
+  # stop at the first missing page and name the file after the range collected
+  python scrape.py --url "https://example.com/part-{n}" --start 101 --max-misses 1 --out "book-{first}-{last}.epub"
 
   # reuse a saved source
   python scrape.py --site sites/example.toml --out book.txt
@@ -46,7 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--url", dest="url_template",
         help="URL with an {n} placeholder for the number that changes",
     )
-    parser.add_argument("--out", help="output file; the extension picks the format")
+    parser.add_argument(
+        "--out",
+        help="output file; the extension picks the format. {first} and {last} "
+             "are replaced with the first and last page numbers collected",
+    )
     parser.add_argument("--site", help="TOML file holding settings for a source")
 
     parser.add_argument("--start", type=int, help="first number (default 1)")
@@ -83,7 +92,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="drop any block matching this pattern; repeatable",
     )
 
+    parser.add_argument(
+        "--no-trim-overlap", dest="trim_overlap", action="store_false", default=None,
+        help="keep the recap a page opens with, instead of trimming it",
+    )
+    parser.add_argument(
+        "--overlap-window", dest="overlap_window", type=int, metavar="BLOCKS",
+        help="blocks at the end of a page that a recap may restate (default 15)",
+    )
+
     parser.add_argument("--title", help="title for the finished document")
+    parser.add_argument(
+        "--titles", metavar="JSON",
+        help="JSON file of page number to title, used instead of the scraped titles",
+    )
     parser.add_argument(
         "--delay", type=float, help="seconds to wait between requests (default 1.5)",
     )
@@ -128,6 +150,7 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
         config = load_site_config(site) if site else {}
         settings = build_settings(args, config)
         _check_output_format(settings.out)
+        titles = load_titles(settings.titles) if settings.titles else None
     except ValueError as exc:
         report(f"error: {exc}")
         return 2
@@ -149,10 +172,19 @@ def main(argv: list[str] | None = None, fetcher_factory=build_fetcher) -> int:
         patterns=settings.strip_patterns,
     )
     _report_removals(removals, collected, report)
+
+    if settings.trim_overlap:
+        pages, trims = trim_overlap(pages, window=settings.overlap_window)
+        _report_trims(trims, report)
+
+    if titles:
+        pages, replaced = apply_titles(pages, titles)
+        report(f"Titles: {replaced} of {len(pages)} page(s) took a supplied title.")
+
     _warn_if_emptied(pages, report)
 
     try:
-        written = write_document(pages, settings.out, title=settings.title)
+        written = write_document(pages, _fill_out_name(settings.out, pages), title=settings.title)
     except (ValueError, OSError) as exc:
         report(f"error: could not write {settings.out}: {exc}")
         return 2
@@ -170,6 +202,16 @@ def _report_removals(removals, total: int, report) -> None:
         report(f"  on {removal.pages}/{total} pages: {removal.text}")
 
 
+def _report_trims(trims, report) -> None:
+    """Say which pages opened with a recap, and what went with it."""
+    if not trims:
+        return
+    blocks = sum(trim.blocks for trim in trims)
+    report(f"Trimmed {blocks} repeated block(s) from the start of {len(trims)} page(s):")
+    for trim in trims:
+        report(f"  page {trim.number}: {trim.text}")
+
+
 def _warn_if_emptied(pages, report) -> None:
     """An emptied page means the threshold was too aggressive. Say so."""
     emptied = [p.number for p in pages if p.is_empty]
@@ -180,6 +222,17 @@ def _warn_if_emptied(pages, report) -> None:
             f"value, or --no-dedupe. Re-running costs nothing: the pages "
             f"are cached."
         )
+
+
+def _fill_out_name(out: str, pages) -> str:
+    """Put the first and last page numbers collected into `{first}`/`{last}`.
+
+    Lets an open-ended run name its file after where it actually stopped.
+    """
+    return (
+        out.replace("{first}", str(pages[0].number))
+        .replace("{last}", str(pages[-1].number))
+    )
 
 
 def _check_output_format(out: str) -> None:

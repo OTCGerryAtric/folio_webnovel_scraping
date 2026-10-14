@@ -125,3 +125,73 @@ def test_missing_parent_directories_are_created(tmp_path):
     write_document([page(1, "One", "Body.")], out)
 
     assert out.exists()
+
+
+# --- nested emphasis --------------------------------------------------------
+#
+# The extractor emits ***text*** when <strong> wraps <em>. Rendering that
+# naively produces mis-nested tags, which reportlab rejects outright and
+# which makes EPUB XHTML invalid.
+
+
+def test_the_extractor_really_does_emit_triple_asterisks():
+    from scraper.extract import extract_page
+
+    page = extract_page(
+        "<div id='c'><p><strong><em>Both</em></strong></p></div>", content_selector="#c"
+    )
+
+    assert page.body == "***Both***"
+
+
+def test_bold_italic_is_well_formed_in_epub(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    out = tmp_path / "book.epub"
+    write_document([page(1, "One", "***Both*** and plain.")], out)
+
+    with zipfile.ZipFile(out) as archive:
+        documents = [
+            archive.read(n).decode("utf-8")
+            for n in archive.namelist()
+            if n.endswith((".xhtml", ".html"))
+        ]
+    body = next(d for d in documents if "Both" in d)
+    ET.fromstring(body)  # raises on mis-nested tags
+
+
+def test_bold_italic_becomes_nested_tags_in_epub(tmp_path):
+    out = tmp_path / "book.epub"
+    write_document([page(1, "One", "***Both***")], out)
+
+    with zipfile.ZipFile(out) as archive:
+        contents = "".join(
+            archive.read(n).decode("utf-8")
+            for n in archive.namelist()
+            if n.endswith((".xhtml", ".html"))
+        )
+    assert "<strong><em>Both</em></strong>" in contents
+
+
+def test_bold_italic_reduces_to_plain_words_in_text(tmp_path):
+    out = tmp_path / "book.txt"
+    write_document([page(1, "One", "***Both*** and *one* and **two**.")], out)
+
+    assert "Both and one and two." in out.read_text(encoding="utf-8")
+
+
+def test_existing_nesting_still_works_in_epub(tmp_path):
+    out = tmp_path / "book.epub"
+    write_document(
+        [page(1, "One", "**bold with *it* in**"), page(2, "Two", "*it with **bold** in*")],
+        out,
+    )
+
+    with zipfile.ZipFile(out) as archive:
+        contents = "".join(
+            archive.read(n).decode("utf-8")
+            for n in archive.namelist()
+            if n.endswith((".xhtml", ".html"))
+        )
+    assert "<strong>bold with <em>it</em> in</strong>" in contents
+    assert "<em>it with <strong>bold</strong> in</em>" in contents

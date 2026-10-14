@@ -14,6 +14,12 @@ from scraper.extract import Page
 
 # Emphasis markers that were not escaped by the extractor, i.e. ones we
 # emitted ourselves rather than ones present in the source text.
+#
+# Order matters. *** must be consumed whole, before the ** and * rules see
+# it: matching ** first eats the outer pair plus the inner opening star,
+# leaving the closing one to pair up across the tag boundary and produce
+# <b><i>x</b></i>. reportlab rejects that outright.
+_BOLD_ITALIC_RE = re.compile(r"(?<!\\)\*\*\*(.+?)(?<!\\)\*\*\*", re.DOTALL)
 _STRONG_RE = re.compile(r"(?<!\\)\*\*(.+?)(?<!\\)\*\*", re.DOTALL)
 _EMPHASIS_RE = re.compile(r"(?<!\\)\*(.+?)(?<!\\)\*", re.DOTALL)
 _UNESCAPE_RE = re.compile(r"\\([\\`*_\[\]#])")
@@ -86,10 +92,18 @@ def _to_plain(markdown: str) -> str:
     return "\n".join(lines)
 
 
+def _apply_emphasis(text: str, bold_italic: str, strong: str, emphasis: str) -> str:
+    """Replace our emphasis markers, widest marker first.
+
+    Every renderer goes through here so the ordering rule is stated once.
+    """
+    text = _BOLD_ITALIC_RE.sub(bold_italic, text)
+    text = _STRONG_RE.sub(strong, text)
+    return _EMPHASIS_RE.sub(emphasis, text)
+
+
 def _strip_inline(text: str) -> str:
-    text = _STRONG_RE.sub(r"\1", text)
-    text = _EMPHASIS_RE.sub(r"\1", text)
-    return _unescape(text)
+    return _unescape(_apply_emphasis(text, r"\1", r"\1", r"\1"))
 
 
 def _unescape(text: str) -> str:
@@ -165,8 +179,9 @@ def _to_html(markdown: str) -> str:
 def _inline_html(text: str) -> str:
     """Escape for HTML first, then turn our own markers into tags."""
     text = html.escape(text, quote=False)
-    text = _STRONG_RE.sub(r"<strong>\1</strong>", text)
-    text = _EMPHASIS_RE.sub(r"<em>\1</em>", text)
+    text = _apply_emphasis(
+        text, r"<strong><em>\1</em></strong>", r"<strong>\1</strong>", r"<em>\1</em>"
+    )
     return _unescape(text)
 
 
@@ -289,8 +304,7 @@ def _pdf_flowables(markdown: str, styles) -> list:
 def _inline_pdf(text: str) -> str:
     """Escape for reportlab's markup, then turn our markers into its tags."""
     text = html.escape(text, quote=False)
-    text = _STRONG_RE.sub(r"<b>\1</b>", text)
-    text = _EMPHASIS_RE.sub(r"<i>\1</i>", text)
+    text = _apply_emphasis(text, r"<b><i>\1</i></b>", r"<b>\1</b>", r"<i>\1</i>")
     return _unescape(text)
 
 
