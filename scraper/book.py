@@ -28,6 +28,7 @@ CLEANED_DIR = "02 Cleaned"
 OUTPUT_DIR = "03 Output"
 COVER_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "cover.gif")
 ACTIVITY_FILE = ".activity.jsonl"
+READING_FILE = "reading.json"
 
 _FORBIDDEN_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _SPACES_RE = re.compile(r"\s+")
@@ -105,6 +106,11 @@ class Book:
     def cover_path(self) -> Path | None:
         """The book's cover image, if it has one."""
         return next((self.folder / n for n in COVER_NAMES if (self.folder / n).is_file()), None)
+
+    @property
+    def reading_path(self) -> Path:
+        """Where the reader keeps this book's place."""
+        return self.folder / READING_FILE
 
     @property
     def activity_path(self) -> Path:

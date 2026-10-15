@@ -154,36 +154,37 @@ def _write_epub(pages: list[Page], path: Path, title: str | None, cover=None) ->
 
 def _to_html(markdown: str) -> str:
     """Render the Markdown subset the extractor emits back into HTML."""
-    parts = []
-    for block in markdown.split("\n\n"):
-        block = block.strip("\n")
-        if not block.strip():
-            continue
+    return "\n".join(html for html in map(block_html, markdown.split("\n\n")) if html)
 
-        heading = _HEADING_RE.match(block)
-        if heading:
-            depth = len(heading.group(1))
-            parts.append(f"<h{depth}>{_inline_html(heading.group(2))}</h{depth}>")
-        elif block.strip() == "---":
-            parts.append("<hr/>")
-        elif all(line.startswith(">") for line in block.split("\n")):
-            inner = "\n".join(line.lstrip("> ").rstrip() for line in block.split("\n"))
-            parts.append(f"<blockquote><p>{_inline_html(inner)}</p></blockquote>")
-        elif all(line.startswith("- ") for line in block.split("\n")):
-            items = "".join(
-                f"<li>{_inline_html(line[2:])}</li>" for line in block.split("\n")
-            )
-            parts.append(f"<ul>{items}</ul>")
-        elif all(_ORDERED_ITEM_RE.match(line) for line in block.split("\n")):
-            items = "".join(
-                f"<li>{_inline_html(_ORDERED_ITEM_RE.match(line).group(1))}</li>"
-                for line in block.split("\n")
-            )
-            parts.append(f"<ol>{items}</ol>")
-        else:
-            parts.append(f"<p>{_inline_html(block).replace(chr(10), '<br/>')}</p>")
 
-    return "\n".join(parts)
+def block_html(block: str) -> str:
+    """One block of the Markdown subset as HTML; "" for a blank one.
+
+    Shared by the epub and the reader, so a chapter reads the same in both.
+    """
+    block = block.strip("\n")
+    if not block.strip():
+        return ""
+
+    heading = _HEADING_RE.match(block)
+    if heading:
+        depth = len(heading.group(1))
+        return f"<h{depth}>{_inline_html(heading.group(2))}</h{depth}>"
+    if block.strip() == "---":
+        return "<hr/>"
+    if all(line.startswith(">") for line in block.split("\n")):
+        inner = "\n".join(line.lstrip("> ").rstrip() for line in block.split("\n"))
+        return f"<blockquote><p>{_inline_html(inner)}</p></blockquote>"
+    if all(line.startswith("- ") for line in block.split("\n")):
+        items = "".join(f"<li>{_inline_html(line[2:])}</li>" for line in block.split("\n"))
+        return f"<ul>{items}</ul>"
+    if all(_ORDERED_ITEM_RE.match(line) for line in block.split("\n")):
+        items = "".join(
+            f"<li>{_inline_html(_ORDERED_ITEM_RE.match(line).group(1))}</li>"
+            for line in block.split("\n")
+        )
+        return f"<ol>{items}</ol>"
+    return f"<p>{_inline_html(block).replace(chr(10), '<br/>')}</p>"
 
 
 def _inline_html(text: str) -> str:

@@ -2,6 +2,8 @@
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/fraunces/full.css';
 @import '@fontsource-variable/fraunces/full-italic.css';
+@import '@fontsource-variable/literata/opsz.css';
+@import '@fontsource-variable/literata/opsz-italic.css';
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 

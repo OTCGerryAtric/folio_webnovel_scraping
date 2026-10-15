@@ -32,6 +32,8 @@ export interface BookSummary {
   build_every: number
   outputs: OutputFile[]
   has_cover: boolean
+  /** Where reading got to, for "Continue reading". */
+  reading: { chapter: number } | null
   job: string | null
 }
 
@@ -126,4 +128,28 @@ export interface JobRequest {
   refresh?: boolean
   format?: Format
   every?: number
+}
+
+// --- the reader ---------------------------------------------------------------
+
+export interface ChapterSummary {
+  number: number
+  title: string | null
+  words: number
+}
+
+export interface ChapterList {
+  chapters: ChapterSummary[]
+  first: number | null
+  last: number | null
+}
+
+export interface Chapter {
+  number: number
+  title: string | null
+  version: string
+  /** Escaped HTML, one entry per paragraph of the cleaned text. */
+  paragraphs: string[]
+  prev: number | null
+  next: number | null
 }

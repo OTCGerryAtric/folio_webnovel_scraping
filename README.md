@@ -44,6 +44,26 @@ and nothing leaves it except the requests to the book sites.
 | Files | Build in any format - the whole book, blocks of N chapters, or a range - and download straight to the device you're on |
 | Settings | A form over `book.toml` that keeps the notes written in it, or the file itself to edit directly |
 
+### Reading
+
+Every book with cleaned chapters can be read in Folio itself - nothing
+needs to be built first, and gaps are fine. **Continue reading** on the
+library card or the book page goes back to where you left off; clicking a
+chapter in the chapter map opens that chapter.
+
+- Scroll to read; at the end of a chapter, the next one is a tap away.
+  `←` and `→` change chapter, `t` opens the chapter list.
+- **Aa** sets text size, line spacing, width, theme (paper, sepia, night)
+  and typeface, per device.
+- Your place is kept on this computer, in the book's folder
+  (`reading.json`), to the paragraph. Open the book on your phone and it
+  carries on from the same spot.
+- If two devices disagree - you read on in the phone, then pick up the
+  tablet - Folio asks which place to use rather than jumping. A tab left
+  open elsewhere cannot overwrite newer progress; it offers to go to it.
+- After a re-clean changes a chapter, the reader finds your passage again
+  by its opening words and says so if it had to adjust.
+
 ### On a phone or tablet
 
 ```powershell
@@ -55,7 +75,19 @@ carries an access key; without it, other devices are turned away. Windows
 may ask whether to allow Python through the firewall - allow it on private
 networks.
 
-Other options: `--port 9000`, `--no-browser`.
+Away from home, a private network such as [Tailscale](https://tailscale.com)
+lets your devices reach this computer without putting anything on the
+internet. Tell Folio to answer to the computer's Tailscale name or address
+as well, and keep `--lan` so the access key still applies:
+
+```powershell
+python scrape.py serve --lan --allow-host my-pc.tailnet-name.ts.net
+```
+
+Reading needs a connection to this computer for now; reading offline is
+planned.
+
+Other options: `--port 9000`, `--no-browser`, `--allow-host NAME` (repeatable).
 
 ### Changing the front end
 

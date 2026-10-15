@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { AlertTriangle } from '@lucide/svelte'
+  import { AlertTriangle, BookOpen } from '@lucide/svelte'
   import { percent, type LiveJob } from '../lib/events.svelte'
   import { plural } from '../lib/ranges'
-  import { bookPath } from '../lib/router.svelte'
+  import { bookPath, readPath } from '../lib/router.svelte'
   import type { BookSummary } from '../lib/types'
   import Cover from './Cover.svelte'
   import ProgressStrip from './ProgressStrip.svelte'
@@ -11,6 +11,7 @@
   const pct = $derived(percent(job))
 </script>
 
+<div>
 <a href={bookPath(book.name)} class="group block rounded-xl outline-offset-4" title={book.error ?? book.title}>
   <div class="relative transition-transform duration-300 ease-out group-hover:-translate-y-1.5">
     <div class="transition-shadow duration-300 {job ? 'ring-2 ring-accent ring-offset-4 ring-offset-bg rounded-[4px_10px_10px_4px] animate-pulse' : ''}">
@@ -46,3 +47,10 @@
     </p>
   </div>
 </a>
+{#if book.cleaned}
+  <a href={readPath(book.name)} class="chip mt-2.5 !py-1 transition hover:!border-accent hover:!text-accent">
+    <BookOpen size={12} />
+    {book.reading ? `Continue · ch ${book.reading.chapter.toLocaleString('en-GB')}` : 'Start reading'}
+  </a>
+{/if}
+</div>
