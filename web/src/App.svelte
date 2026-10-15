@@ -4,6 +4,7 @@
   import { router } from './lib/router.svelte'
   import { theme } from './lib/theme.svelte'
   import Library from './routes/Library.svelte'
+  import Read from './routes/Read.svelte'
   import Book from './routes/Book.svelte'
   import Dock from './components/Dock.svelte'
   import Toasts from './components/Toasts.svelte'
@@ -24,10 +25,16 @@
 
   $effect(() => {
     const route = router.route
-    document.title = route.page === 'book' ? `${route.name} · Folio` : 'Folio'
+    document.title = route.page === 'library' ? 'Folio' : `${route.name} · Folio`
   })
 </script>
 
+{#if router.route.page === 'read'}
+  <!-- the reader has the whole screen: no app header, dock or tabs -->
+  {#key router.route.name + ':' + router.route.chapter}
+    <Read name={router.route.name} chapter={router.route.chapter} />
+  {/key}
+{:else}
 <header class="sticky top-0 z-30 border-b border-line/60 bg-bg/75 backdrop-blur-xl">
   <div class="mx-auto flex h-14 max-w-[1200px] items-center gap-3 px-4 sm:px-6">
     <a href="#/" class="group flex items-center gap-2.5" aria-label="Folio, your library">
@@ -62,4 +69,5 @@
 </main>
 
 <Dock />
+{/if}
 <Toasts />

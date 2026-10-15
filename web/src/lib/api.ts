@@ -1,8 +1,9 @@
 // A typed wrapper over every endpoint. Errors arrive as ApiError carrying
 // the server's own message, which is the CLI's wording.
 
+import type { Stored } from './reader/sync'
 import type {
-  BookDetail, BookSummary, Job, JobRequest, PatternResult, Preview, Review, SettingsData, SettingValue,
+  BookDetail, BookSummary, Chapter, ChapterList, Job, JobRequest, PatternResult, Preview, Review, SettingsData, SettingValue,
 } from './types'
 
 export class ApiError extends Error {
@@ -53,6 +54,41 @@ export const api = {
   saveSettings: (name: string, body: { values?: Record<string, SettingValue>; raw?: string }) =>
     call<SettingsData>('PUT', `/api/books/${enc(name)}/settings`, body),
   deleteFile: (name: string, file: string) => call<void>('DELETE', `/api/books/${enc(name)}/files/${enc(file)}`),
+  chapters: (name: string) => call<ChapterList>('GET', `/api/books/${enc(name)}/chapters`),
+  chapter: (name: string, n: number) => call<Chapter>('GET', `/api/books/${enc(name)}/chapters/${n}`),
+  position: (name: string) => call<Stored>('GET', `/api/books/${enc(name)}/position`),
+}
+
+export interface PositionSave {
+  base_revision: number
+  chapter: number
+  paragraph: number
+  offset: number
+  device: string
+  device_name: string
+}
+
+/** Save a reading place. A 409 is an answer here, not an error: it carries the newer place. */
+export async function savePosition(
+  name: string,
+  body: PositionSave,
+  keepalive = false,
+): Promise<{ ok: boolean; stored: Stored }> {
+  let response: Response
+  try {
+    response = await fetch(`/api/books/${enc(name)}/position`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive,
+    })
+  } catch {
+    throw new ApiError(0, 'Folio is not reachable. Is it still running?')
+  }
+  const data = await response.json().catch(() => ({}))
+  if (response.status === 409) return { ok: false, stored: data as Stored }
+  if (!response.ok) throw new ApiError(response.status, data.error ?? `${response.status} ${response.statusText}`)
+  return { ok: true, stored: data as Stored }
 }
 
 export const fileUrl = (name: string, file: string) => `/api/books/${enc(name)}/files/${enc(file)}`

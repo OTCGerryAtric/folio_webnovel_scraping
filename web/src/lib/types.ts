@@ -127,3 +127,27 @@ export interface JobRequest {
   format?: Format
   every?: number
 }
+
+// --- the reader ---------------------------------------------------------------
+
+export interface ChapterSummary {
+  number: number
+  title: string | null
+  words: number
+}
+
+export interface ChapterList {
+  chapters: ChapterSummary[]
+  first: number | null
+  last: number | null
+}
+
+export interface Chapter {
+  number: number
+  title: string | null
+  version: string
+  /** Escaped HTML, one entry per paragraph of the cleaned text. */
+  paragraphs: string[]
+  prev: number | null
+  next: number | null
+}

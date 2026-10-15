@@ -1,27 +1,17 @@
-// A hash router: #/ for the library, #/book/<name>/<tab> for a book.
-// Hash routes keep the server's static file serving trivial.
+// The current route, reactive. The routes themselves are in routes.ts.
 
-export type Tab = 'overview' | 'watermarks' | 'files' | 'settings'
-export const TABS: Tab[] = ['overview', 'watermarks', 'files', 'settings']
+import { parseRoute, type Route } from './routes'
 
-export type Route = { page: 'library' } | { page: 'book'; name: string; tab: Tab }
-
-function parse(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
-  if (parts[0] === 'book' && parts[1]) {
-    const tab = (TABS as string[]).includes(parts[2]) ? (parts[2] as Tab) : 'overview'
-    return { page: 'book', name: decodeURIComponent(parts[1]), tab }
-  }
-  return { page: 'library' }
-}
+export { bookPath, readPath, TABS, type Route, type Tab } from './routes'
 
 class Router {
-  route = $state<Route>(parse(location.hash))
+  route = $state<Route>(parseRoute(location.hash))
 
   constructor() {
     addEventListener('hashchange', () => {
-      this.route = parse(location.hash)
-      scrollTo({ top: 0 })
+      this.route = parseRoute(location.hash)
+      // The reader puts its own place back; everywhere else starts at the top.
+      if (this.route.page !== 'read') scrollTo({ top: 0 })
     })
   }
 
@@ -31,6 +21,3 @@ class Router {
 }
 
 export const router = new Router()
-
-export const bookPath = (name: string, tab: Tab = 'overview') =>
-  `#/book/${encodeURIComponent(name)}${tab === 'overview' ? '' : `/${tab}`}`
