@@ -16,3 +16,6 @@ __pycache__/
 
 # Books are personal material: settings, downloads and output alike.
 /books/
+
+# The front end's packages; its built output in scraper/web/static is kept.
+/web/node_modules/
