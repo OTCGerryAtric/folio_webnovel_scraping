@@ -21,7 +21,7 @@ from scraper.book import (
 )
 from scraper.bookpage import parse_book_page, site_phrase
 from scraper.fetch import fetch_page
-from scraper.reporting import report_removals, report_trims, warn_if_emptied
+from scraper.reporting import console_safe, report_removals, report_trims, warn_if_emptied
 from scraper.review import repeated_sentences
 from scraper.run import build_fetcher
 from scraper.stages import build, build_blocks, clean, download, read_cleaned, site_latest
@@ -221,16 +221,17 @@ def _clean(args, root, report, **_):
 
 def _review(args, root, report, **_):
     book = find_book(args.book, root)
+    settings = book.settings()
     pages = read_cleaned(book)
     if not pages:
         raise ValueError(f"{book.name} has no cleaned chapters. Run clean first.")
-    repeats = repeated_sentences(pages, min_chapters=args.min_chapters)
+    repeats = repeated_sentences(pages, min_chapters=args.min_chapters, ignore=settings.review_ignore)
     if not repeats:
         report(f"No sentence appears in {args.min_chapters} or more chapters.")
         return 0
     report(f"Sentences in {args.min_chapters}+ of {len(pages)} chapters (first chapter in brackets):")
     for repeat in repeats:
-        report(f"  {repeat.chapters:5}  {repeat.text}  [{repeat.first}]")
+        report(f"  {repeat.chapters:5}  {console_safe(repeat.text)}  [{repeat.first}]")
     report("Anything here that is not the story can go in remove_phrases in book.toml.")
     return 0
 

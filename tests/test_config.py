@@ -1,7 +1,7 @@
 """Tests for settings: CLI arguments merged over an optional TOML file."""
 import pytest
 
-from scraper.config import Settings, build_settings, load_site_config
+from scraper.config import Settings, build_settings, load_site_config, parse_site_config
 
 
 def write_toml(tmp_path, text):
@@ -244,3 +244,14 @@ def test_build_every_defaults_to_one_book_and_rejects_a_negative():
 
     with pytest.raises(ValueError, match="build_every"):
         build_settings({"url_template": "http://x/{n}", "build_every": -1}, require_out=False)
+
+
+def test_review_ignore_is_a_known_setting():
+    settings = build_settings({"url_template": "http://x/{n}"}, {"review_ignore": ["a b c"]}, require_out=False)
+
+    assert settings.review_ignore == ["a b c"]
+
+
+def test_parse_site_config_rejects_unknown_keys():
+    with pytest.raises(ValueError, match="Unknown setting"):
+        parse_site_config('nonsense = 1\n', "book.toml")

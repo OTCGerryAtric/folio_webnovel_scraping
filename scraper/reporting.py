@@ -2,6 +2,19 @@
 
 from __future__ import annotations
 
+_TYPOGRAPHIC = str.maketrans({
+    "‘": "'", "’": "'", "“": '"', "”": '"',
+    "…": "...", "–": "-", "—": "-",
+})
+
+
+def console_safe(text: str) -> str:
+    """Typographic punctuation to ASCII; anything else unprintable becomes '?'.
+
+    A Windows console in a legacy code page raises on what it cannot encode.
+    """
+    return text.translate(_TYPOGRAPHIC).encode("ascii", "replace").decode("ascii")
+
 
 def report_removals(removals, total: int, report) -> None:
     if not removals:

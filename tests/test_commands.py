@@ -331,3 +331,18 @@ def test_a_negative_block_size_is_a_clear_error(tmp_path):
 
     assert code == 2
     assert "every" in out
+
+
+def test_review_output_is_ascii_safe_and_skips_ignored(tmp_path):
+    book = Book(tmp_path / "B")
+    book.create({"title": "B", "url_template": "http://x/{n}", "review_ignore": ["he shook his head slowly"]})
+    for n in range(1, 5):
+        book.cleaned_path(n).write_text(
+            f"# C{n}\n\n“It’s not enough at all…” He shook his head slowly.\n", encoding="utf-8"
+        )
+
+    code, out = run(["review", "B", "--min-chapters", "2"], tmp_path)
+
+    assert code == 0
+    assert "\"It's not enough at all...\"" in out
+    assert "shook" not in out

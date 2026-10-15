@@ -43,6 +43,7 @@ DEFAULTS: dict = {
     "source": None,
     "remove_phrases": [],
     "build_every": 0,
+    "review_ignore": [],
     "cache_dir": None,
     "verbose": False,
 }
@@ -79,6 +80,7 @@ class Settings:
     source: str | None = None
     remove_phrases: list[str] = field(default_factory=list)
     build_every: int = 0
+    review_ignore: list[str] = field(default_factory=list)
     cache_dir: str | None = None
     verbose: bool = False
 
@@ -114,16 +116,20 @@ def load_site_config(path: Path | str) -> dict:
     if not path.exists():
         raise ValueError(f"Site config not found: {path}")
 
+    return parse_site_config(path.read_text(encoding="utf-8"), str(path))
+
+
+def parse_site_config(text: str, source: str) -> dict:
+    """Parse settings from TOML text, rejecting keys we would silently ignore."""
     try:
-        with path.open("rb") as handle:
-            config = tomllib.load(handle)
+        config = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
-        raise ValueError(f"Could not parse {path}: {exc}") from exc
+        raise ValueError(f"Could not parse {source}: {exc}") from exc
 
     unknown = sorted(set(config) - KNOWN_KEYS)
     if unknown:
         raise ValueError(
-            f"Unknown setting(s) in {path}: {', '.join(unknown)}. "
+            f"Unknown setting(s) in {source}: {', '.join(unknown)}. "
             f"Valid keys: {', '.join(sorted(KNOWN_KEYS))}"
         )
     return config
@@ -139,6 +145,7 @@ def build_settings(args: dict, config: dict | None = None, require_out: bool = T
     merged["remove_selectors"] = []
     merged["strip_patterns"] = []
     merged["remove_phrases"] = []
+    merged["review_ignore"] = []
 
     for source in (config or {}, args or {}):
         merged.update({k: v for k, v in source.items() if v is not None})

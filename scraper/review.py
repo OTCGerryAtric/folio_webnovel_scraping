@@ -34,35 +34,45 @@ class Repeat:
     text: str
     chapters: int
     first: int | None
+    key: str = ""
 
 
-def repeated_sentences(pages: list[Page], min_chapters: int = 4, limit: int = 60) -> list[Repeat]:
+def repeated_sentences(
+    pages: list[Page], min_chapters: int = 4, limit: int = 60, ignore=()
+) -> list[Repeat]:
+    """Sentences found in at least `min_chapters` chapters, most common first.
+
+    Sentences in `ignore` - the author's own habits, once someone has said
+    so - are left out, however they are punctuated or capitalised.
+    """
+    skip = {normalise(text) for text in ignore}
     counts: Counter = Counter()
     first_seen: dict[str, tuple[str, int | None]] = {}
 
     for page in pages:
         keys = set()
         for block in page.body.split("\n\n"):
-            for sentence in _SPLIT_RE.split(block):
-                key = _normalise(sentence)
-                if len(key) < _MIN_LENGTH:
+            for sentence in split_sentences(block):
+                key = normalise(sentence)
+                if len(key) < _MIN_LENGTH or key in skip:
                     continue
                 keys.add(key)
                 first_seen.setdefault(key, (sentence.strip(), page.number))
         counts.update(keys)
 
     repeats = [
-        Repeat(text=_console_safe(first_seen[key][0]), chapters=count, first=first_seen[key][1])
+        Repeat(text=first_seen[key][0], chapters=count, first=first_seen[key][1], key=key)
         for key, count in counts.most_common()
         if count >= min_chapters
     ]
     return repeats[:limit]
 
 
-def _normalise(text: str) -> str:
-    return _WHITESPACE_RE.sub(" ", _NOT_PLAIN_RE.sub(" ", text.lower())).strip()
+def split_sentences(block: str) -> list[str]:
+    return _SPLIT_RE.split(block)
 
 
-def _console_safe(text: str) -> str:
-    """Typographic punctuation to ASCII; anything else unprintable becomes '?'."""
-    return text.translate(_TYPOGRAPHIC).encode("ascii", "replace").decode("ascii")
+def normalise(text: str) -> str:
+    """Lower case, punctuation as spaces: the form sentences are compared in."""
+    text = text.translate(_TYPOGRAPHIC).lower()
+    return _WHITESPACE_RE.sub(" ", _NOT_PLAIN_RE.sub(" ", text)).strip()

@@ -45,13 +45,19 @@ def test_the_most_repeated_come_first_and_the_list_is_capped():
     assert [r.text for r in repeats] == ["Alpha sentence repeated often."]
 
 
-def test_report_text_is_ascii_safe():
+def test_report_keeps_the_original_characters_and_a_key():
     pages = [page(n, "“It’s not enough at all…”") for n in range(1, 3)]
 
-    text = repeated_sentences(pages, min_chapters=2)[0].text
+    repeat = repeated_sentences(pages, min_chapters=2)[0]
 
-    assert text == "\"It's not enough at all...\""
-    assert text.isascii()
+    assert repeat.text == "“It’s not enough at all…”"
+    assert repeat.key == "it s not enough at all"
+
+
+def test_ignored_sentences_are_left_out_however_they_are_written():
+    pages = [page(n, f"Story {n} goes on and on. {NOTE}") for n in range(1, 6)]
+
+    assert repeated_sentences(pages, min_chapters=4, ignore=["GIVE it a power stone please"]) == []
 
 
 def test_a_sentence_after_an_emphasised_one_is_counted_on_its_own():
