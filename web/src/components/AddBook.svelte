@@ -8,7 +8,8 @@
   import Cover from './Cover.svelte'
   import Dialog from './Dialog.svelte'
 
-  let { open = $bindable(false), url = '' }: { open?: boolean; url?: string } = $props()
+  // folder: setting up a folder that already exists, so its name is fixed.
+  let { open = $bindable(false), url = '', folder = '' }: { open?: boolean; url?: string; folder?: string } = $props()
 
   let mode = $state<'page' | 'manual'>('page')
   let pageUrl = $state('')
@@ -27,10 +28,12 @@
   $effect(() => {
     if (!open) return
     const given = url
+    const fixed = folder
     untrack(() => {
       mode = 'page'
       preview = null
       error = null
+      name = fixed
       pageUrl = given
       if (given) lookUp()
       tick().then(() => urlInput?.focus())
@@ -44,7 +47,7 @@
     preview = null
     try {
       preview = await api.preview(pageUrl.trim())
-      name = preview.name
+      if (!folder) name = preview.name
     } catch (e) {
       error = (e as ApiError).message
     } finally {
@@ -75,7 +78,7 @@
   }
 </script>
 
-<Dialog bind:open title="Add a book">
+<Dialog bind:open title={folder ? `Set up ${folder}` : 'Add a book'}>
   {#if mode === 'page'}
     <form class="space-y-3" onsubmit={e => (e.preventDefault(), lookUp())}>
       <label class="label" for="add-url">The book's main page</label>
@@ -120,7 +123,7 @@
       </div>
       <div class="mt-5 space-y-2">
         <label class="label" for="add-name">Folder name</label>
-        <input id="add-name" class="input" bind:value={name} />
+        <input id="add-name" class="input" bind:value={name} readonly={!!folder} />
         {#if preview.exists && name === preview.name}
           <p class="flex items-center gap-1.5 text-sm text-warn">
             <AlertTriangle size={14} /> A book called {preview.name} is already in your library. Choose another name.
@@ -150,7 +153,7 @@
       </div>
       <div class="space-y-2">
         <label class="label" for="add-folder">Folder name <span class="normal-case tracking-normal text-faint">(optional)</span></label>
-        <input id="add-folder" class="input" bind:value={name} placeholder={title} />
+        <input id="add-folder" class="input" bind:value={name} placeholder={title} readonly={!!folder} />
       </div>
     </div>
   {/if}

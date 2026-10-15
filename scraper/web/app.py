@@ -203,7 +203,8 @@ def create_app(
             "title": info.title, "author": info.author, "status": info.status,
             "updated": info.updated, "latest": info.latest, "url_template": info.url_template,
             "cover": info.cover, "site_phrase": site_phrase(body.url) is not None,
-            "name": name, "exists": bool(name) and (root / name).exists(),
+            # A folder without book.toml is one waiting to be set up, not a clash.
+            "name": name, "exists": bool(name) and Book(root / name).has_config(),
         }
 
     @app.post("/api/books", status_code=201)
@@ -337,7 +338,10 @@ def create_app(
 
     @app.get("/api/books/{name}/settings")
     def get_settings(name: str):
-        return read_settings(find(name))
+        book = find(name)
+        if not book.has_config():
+            raise HTTPException(404, f"{book.name} is not set up yet: add it from its book page to create its settings.")
+        return read_settings(book)
 
     @app.put("/api/books/{name}/settings")
     def put_settings(name: str, body: SettingsIn):

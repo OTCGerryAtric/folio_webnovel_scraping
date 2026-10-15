@@ -179,3 +179,16 @@ def test_one_broken_book_does_not_take_down_the_library(client, book, root, monk
 
     assert books["Other"]["ready"] and not books["B"]["ready"]
     assert "something unforeseen" in books["B"]["error"]
+
+
+def test_a_folder_made_by_hand_can_be_set_up_from_its_page(client, root):
+    (root / "Bee Book" / "01 Raw").mkdir(parents=True)
+
+    preview = client.post("/api/books/preview", json={"url": PAGE_URL}).json()
+    assert preview["exists"] is False  # a folder without book.toml is waiting to be set up
+
+    settings = client.get("/api/books/Bee Book/settings")
+    assert settings.status_code == 404 and "not set up" in settings.json()["error"]
+
+    added = client.post("/api/books", json={"url": PAGE_URL, "name": "Bee Book"})
+    assert added.status_code == 201 and added.json()["ready"]

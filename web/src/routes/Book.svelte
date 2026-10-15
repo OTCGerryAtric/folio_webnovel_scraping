@@ -13,6 +13,7 @@
   import Cover from '../components/Cover.svelte'
   import JobBar from '../components/JobBar.svelte'
   import Tabs from '../components/Tabs.svelte'
+  import AddBook from '../components/AddBook.svelte'
   import Watermarks from './tabs/Watermarks.svelte'
   import Files from './tabs/Files.svelte'
   import Settings from './tabs/Settings.svelte'
@@ -22,6 +23,7 @@
   let book = $state<BookDetail | null>(null)
   let error = $state<string | null>(null)
   let checking = $state(false)
+  let settingUp = $state(false)
 
   const job = $derived(jobsStore.byBook(name))
   const host = $derived(book?.source ? new URL(book.source).host.replace(/^www\./, '') : null)
@@ -79,6 +81,8 @@
 <a href="#/" class="mt-6 inline-flex items-center gap-1.5 text-sm text-muted transition hover:text-accent">
   <ArrowLeft size={15} /> Library
 </a>
+
+<AddBook bind:open={settingUp} folder={name} />
 
 {#if error}
   <div class="card mt-8 border-bad/40 p-6">
@@ -143,7 +147,12 @@
         />
       </div>
       {#if !book.ready}
-        <p class="mt-4 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-left text-sm text-warn">{book.error}</p>
+        <div class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-left">
+          <p class="flex-1 text-sm text-warn">
+            {book.error?.includes('no book.toml') ? 'This folder has no settings yet, so Folio does not know where its chapters come from.' : book.error}
+          </p>
+          <button class="btn btn-sm btn-primary" onclick={() => (settingUp = true)}>Set up this book</button>
+        </div>
       {/if}
     </div>
   </section>
