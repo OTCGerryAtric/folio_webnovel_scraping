@@ -192,3 +192,40 @@ def test_a_folder_made_by_hand_can_be_set_up_from_its_page(client, root):
 
     added = client.post("/api/books", json={"url": PAGE_URL, "name": "Bee Book"})
     assert added.status_code == 201 and added.json()["ready"]
+
+
+# --- other web pages cannot drive Folio -----------------------------------------
+
+
+def hardened(root, **kw):
+    return create_app(root=root, get_page=lambda u: None, static_dir=root / "x",
+                      allowed_hosts=["127.0.0.1", "localhost"], **kw)
+
+
+def test_a_request_for_another_host_name_is_refused(root):
+    """DNS rebinding: a hostile site pointing its own name at this machine."""
+    evil = TestClient(hardened(root), base_url="http://evil.example:8765")
+    assert evil.get("/api/books").status_code == 400
+
+    ours = TestClient(hardened(root), base_url="http://127.0.0.1:8765")
+    assert ours.get("/api/books").status_code == 200
+
+
+def test_changes_from_another_site_are_refused(root, book):
+    client = TestClient(hardened(root), base_url="http://127.0.0.1:8765")
+
+    cross = client.post("/api/update-all", headers={"Origin": "http://evil.example"})
+    assert cross.status_code == 403
+    fetched = client.delete("/api/books/B/files/x", headers={"Sec-Fetch-Site": "cross-site"})
+    assert fetched.status_code == 403
+
+    same = client.post("/api/update-all", headers={"Origin": "http://127.0.0.1:8765"})
+    assert same.status_code == 202
+    assert client.get("/api/books", headers={"Origin": "http://evil.example"}).status_code == 200  # reads are harmless
+
+
+def test_lan_mode_accepts_the_machines_own_address(root):
+    app = create_app(root=root, get_page=lambda u: None, static_dir=root / "x", lan_key="k",
+                     allowed_hosts=["127.0.0.1", "localhost", "192.168.1.5"])
+    phone = TestClient(app, base_url="http://192.168.1.5:8765", client=("192.168.1.20", 5000))
+    assert phone.get("/api/books?key=k").status_code == 200

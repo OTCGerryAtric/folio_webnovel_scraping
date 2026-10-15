@@ -12,6 +12,7 @@ import asyncio
 import json
 import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from scraper.book import BOOKS_DIR, Book, list_books, safe_folder_name
 from scraper.bookpage import parse_book_page, site_phrase
@@ -34,6 +36,7 @@ from scraper.web.watermarks import review_rows, suggest_pattern, test_pattern
 STATIC_DIR = Path(__file__).parent / "static"
 KEY_COOKIE = "folio_key"
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+_CHANGES = {"POST", "PUT", "PATCH", "DELETE"}
 _MEDIA = {
     ".epub": "application/epub+zip",
     ".pdf": "application/pdf",
@@ -87,6 +90,7 @@ def create_app(
     get_bytes=fetch_bytes,
     lan_key: str | None = None,
     static_dir: Path = STATIC_DIR,
+    allowed_hosts: list[str] | None = None,
 ) -> FastAPI:
     root = Path(root)
     app = FastAPI(title="Folio", docs_url=None, redoc_url=None, openapi_url=None)
@@ -120,6 +124,22 @@ def create_app(
     @app.exception_handler(StarletteHTTPException)
     async def _http(request, exc):
         return error(exc.status_code, str(exc.detail))
+
+    # Another web page open in the same browser must not drive Folio. Changes
+    # from a different origin are refused, and with `allowed_hosts` a request
+    # naming any other host is too - a site that points its own name at this
+    # machine (DNS rebinding) would otherwise count as same-origin.
+    @app.middleware("http")
+    async def _same_origin_only(request: Request, call_next):
+        if request.method in _CHANGES:
+            origin = request.headers.get("origin")
+            cross = request.headers.get("sec-fetch-site") == "cross-site"
+            if cross or (origin and urlparse(origin).netloc != request.headers.get("host")):
+                return error(403, "Changes can only come from Folio's own pages.")
+        return await call_next(request)
+
+    if allowed_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     if lan_key:
         @app.middleware("http")

@@ -37,3 +37,15 @@ def test_serve_is_a_command(tmp_path, monkeypatch):
 
     assert code == 0
     assert seen["lan"] is True and seen["open_browser"] is False and seen["port"] == 8800
+
+
+def test_serve_guards_its_host_name_and_does_not_wait_for_open_tabs_to_stop(tmp_path):
+    from fastapi.testclient import TestClient
+
+    calls = {}
+    serve(tmp_path, open_browser=False, port=9999, report=lambda m: None,
+          run=lambda app, **kw: calls.update(kw, app=app))
+
+    assert calls["timeout_graceful_shutdown"] <= 5
+    assert TestClient(calls["app"], base_url="http://evil.example").get("/api/books").status_code == 400
+    assert TestClient(calls["app"], base_url="http://localhost:9999").get("/api/books").status_code == 200

@@ -43,19 +43,23 @@ def serve(root, lan: bool = False, port: int | None = None, open_browser: bool =
     host = "0.0.0.0" if lan else "127.0.0.1"
     port = port or free_port(host)
     key = secrets.token_urlsafe(12) if lan else None
-    app = create_app(root=root, lan_key=key)
+    address = lan_address() if lan else None
+    hosts = ["127.0.0.1", "localhost", *([address] if address else [])]
+    app = create_app(root=root, lan_key=key, allowed_hosts=hosts)
 
     local = f"http://127.0.0.1:{port}/"
     report(f"Folio is running at {local}")
     if lan:
-        remote = f"http://{lan_address()}:{port}/?key={key}"
+        remote = f"http://{address}:{port}/?key={key}"
         report(f"On a phone or tablet on the same Wi-Fi, open: {remote}")
         _report_qr(remote, report)
     report("Press Ctrl-C to stop.")
 
     if open_browser:
         threading.Timer(1.0, webbrowser.open, args=(local,)).start()
-    run(app, host=host, port=port, log_level="warning")
+    # Open tabs hold an event stream that never ends by itself; without a
+    # time limit, Ctrl-C would wait on them for good.
+    run(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=2)
     return 0
 
 
