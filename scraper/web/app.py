@@ -147,11 +147,32 @@ def create_app(
                 return path
         raise HTTPException(404, f"{book.name} has no built file called {name!r}")
 
+    # Reading a long book's cleaned chapters and counting its sentences takes
+    # seconds, so both are kept until the cleaned folder changes.
+    cleaned_cache: dict[str, tuple] = {}
+    review_cache: dict[tuple, list] = {}
+
+    def stamp(book: Book) -> tuple:
+        files = list(book.cleaned_dir.glob("*.md")) if book.cleaned_dir.is_dir() else []
+        return len(files), max((f.stat().st_mtime_ns for f in files), default=0)
+
     def cleaned(book: Book):
-        pages = read_cleaned(book)
-        if not pages:
+        now = stamp(book)
+        held = cleaned_cache.get(book.name)
+        if held is None or held[0] != now:
+            held = (now, read_cleaned(book))
+            cleaned_cache[book.name] = held
+        if not held[1]:
             raise ValueError(f"{book.name} has no cleaned chapters. Run clean first.")
-        return pages
+        return held[1]
+
+    def reviewed(book: Book, minimum: int, ignore: list[str]) -> list:
+        pages = cleaned(book)
+        key = (book.name, cleaned_cache[book.name][0], minimum, tuple(ignore))
+        if key not in review_cache:
+            review_cache.clear()  # only the latest view is worth keeping
+            review_cache[key] = review_rows(pages, minimum, ignore)
+        return review_cache[key]
 
     def with_job(data: dict) -> dict:
         running = jobs.running_for(data["name"])
@@ -280,10 +301,10 @@ def create_app(
     def review(name: str, min: int = 4):
         book = find(name)
         settings = book.settings()
-        pages = cleaned(book)
+        rows = reviewed(book, max(min, 2), settings.review_ignore)
         return {
-            "chapters": len(pages),
-            "rows": review_rows(pages, max(min, 2), settings.review_ignore),
+            "chapters": len(cleaned(book)),
+            "rows": rows,
             "phrases": settings.remove_phrases,
         }
 

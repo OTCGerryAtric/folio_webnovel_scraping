@@ -24,7 +24,11 @@ def review_rows(pages, min_chapters: int, ignore) -> list[dict]:
     """Repeated sentences, each with up to two places it appears."""
     repeats = repeated_sentences(pages, min_chapters=min_chapters, ignore=ignore)
     contexts: dict[str, list[dict]] = {r.key: [] for r in repeats}
+    wanted = len(contexts) * 2
+    found_count = 0
     for page in pages:
+        if found_count >= wanted:
+            break  # every row has its two examples; no need to read on
         for block in page.body.split("\n\n"):
             for sentence in split_sentences(block):
                 found = contexts.get(normalise(sentence))
@@ -32,6 +36,7 @@ def review_rows(pages, min_chapters: int, ignore) -> list[dict]:
                     continue
                 if all(c["chapter"] != page.number for c in found):
                     found.append({"chapter": page.number, "text": _snippet(block, sentence)})
+                    found_count += 1
     return [
         {"text": r.text, "key": r.key, "chapters": r.chapters, "first": r.first, "contexts": contexts[r.key]}
         for r in repeats

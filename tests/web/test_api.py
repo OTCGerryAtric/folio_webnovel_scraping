@@ -137,3 +137,18 @@ def test_lan_key_is_required_off_this_machine(root):
 
     local = TestClient(app, client=("127.0.0.1", 5000))
     assert local.get("/api/books").status_code == 200
+
+
+def test_review_sees_the_text_change_after_a_clean(client, book):
+    first = client.get("/api/books/B/review?min=4").json()["rows"]
+    assert any("FreeWebNovel" in r["text"] for r in first)
+
+    for n in range(1, 31):  # as a clean does: every file rewritten
+        path = book.cleaned_path(n)
+        path.write_text(path.read_text(encoding="utf-8").replace(" Read more at FreeWebNovel.Com today.", ""),
+                        encoding="utf-8")
+
+    rows = client.get("/api/books/B/review?min=4").json()["rows"]
+    assert all("FreeWebNovel" not in r["text"] for r in rows)
+    tried = client.post("/api/books/B/review/test", json={"pattern": "freewebnovel"}).json()
+    assert tried["sentences"] == 0

@@ -21,12 +21,9 @@ _MIN_LENGTH = 15
 
 # Sentence ends as `phrases` sees them, so the report and the removal agree.
 _SPLIT_RE = re.compile(r'(?<=[.!?"”’…*_)\]])\s+')
-_NOT_PLAIN_RE = re.compile(r"[^a-z0-9 ]+")
-_WHITESPACE_RE = re.compile(r"\s+")
-_TYPOGRAPHIC = str.maketrans({
-    "‘": "'", "’": "'", "“": '"', "”": '"',
-    "…": "...", "–": "-", "—": "-",
-})
+# Anything but letters and digits - spaces, punctuation, curly quotes - is
+# one separator. Run on every sentence of a book, so kept to a single pass.
+_NOT_PLAIN_RE = re.compile(r"[^a-z0-9]+")
 
 
 @dataclass(frozen=True)
@@ -53,6 +50,8 @@ def repeated_sentences(
         keys = set()
         for block in page.body.split("\n\n"):
             for sentence in split_sentences(block):
+                if len(sentence) < _MIN_LENGTH:
+                    continue  # normalising never lengthens, so this is too short already
                 key = normalise(sentence)
                 if len(key) < _MIN_LENGTH or key in skip:
                     continue
@@ -74,5 +73,4 @@ def split_sentences(block: str) -> list[str]:
 
 def normalise(text: str) -> str:
     """Lower case, punctuation as spaces: the form sentences are compared in."""
-    text = text.translate(_TYPOGRAPHIC).lower()
-    return _WHITESPACE_RE.sub(" ", _NOT_PLAIN_RE.sub(" ", text)).strip()
+    return _NOT_PLAIN_RE.sub(" ", text.lower()).strip()
