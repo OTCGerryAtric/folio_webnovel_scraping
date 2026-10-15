@@ -23,6 +23,54 @@ If activation is blocked by execution policy, either run
 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` for that
 session, or skip activation and call `.\.venv\Scripts\python.exe` directly.
 
+## Folio: the books in your browser
+
+Everything below can be done from a browser instead of the command line.
+Double-click `BookScraper.cmd` (pin a shortcut to it on the taskbar), or:
+
+```powershell
+python scrape.py serve
+```
+
+Folio opens at `http://127.0.0.1:8765/`. It is served from this computer
+and nothing leaves it except the requests to the book sites.
+
+| Screen | Does |
+|--------|------|
+| Library | Every book as a cover, with what's held and how many chapters are new on the site. **Update all** brings every book up to date, one after another |
+| Add a book | Paste the book's page; Folio shows what it found before adding it. `/` opens it from anywhere |
+| Book | **Update** downloads what's new, cleans, and builds the new chapters, with live progress you can stop. The chapter map shows every chapter's state, block by block |
+| Watermarks | The sentences that repeat across chapters. Try a pattern against the whole book before saving it, or mark a sentence as the author's own so it stops being listed |
+| Files | Build in any format - the whole book, blocks of N chapters, or a range - and download straight to the device you're on |
+| Settings | A form over `book.toml` that keeps the notes written in it, or the file itself to edit directly |
+
+### On a phone or tablet
+
+```powershell
+python scrape.py serve --lan
+```
+
+prints a link and a QR code for other devices on the same Wi-Fi. The link
+carries an access key; without it, other devices are turned away. Windows
+may ask whether to allow Python through the firewall - allow it on private
+networks.
+
+Other options: `--port 9000`, `--no-browser`.
+
+### Changing the front end
+
+The front end is Svelte, in `web/`, and is built into
+`scraper/web/static/`, which is committed - running Folio needs only
+Python. To work on it, with Node installed:
+
+```powershell
+cd web
+npm install
+npm run dev        # http://localhost:5173, talking to a running `scrape.py serve`
+npm test           # logic tests
+npm run build      # rebuild scraper/web/static
+```
+
 ## Books
 
 Each book lives in its own folder under `books/`:
@@ -60,6 +108,7 @@ will do:
 | `build shadow` | Joins every cleaned chapter into an epub (`--format pdf/md/txt`, `--from`/`--to`, `--every 500` for one file per 500 chapters) |
 | `update shadow` | The everyday one: download what's new, clean, and build just the new chapters |
 | `books` | Lists the books |
+| `serve` | Opens Folio, the books in your browser (`--lan` for phones and tablets) |
 
 `build --every 500` writes one file per block of chapters - `1-500`,
 `501-1000`, `1001-1274` - lined up on round numbers so each block keeps

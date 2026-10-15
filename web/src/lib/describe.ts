@@ -9,6 +9,13 @@ export const KIND_LABEL: Record<JobKind, string> = {
   update: 'Update',
 }
 
+export const KIND_ACTIVE: Record<JobKind, string> = {
+  download: 'Downloading',
+  clean: 'Cleaning',
+  build: 'Building',
+  update: 'Updating',
+}
+
 export function describeJob(job: Pick<ActivityRecord, 'kind' | 'status' | 'summary' | 'error'>): string {
   if (job.status === 'error') return job.error ?? 'Failed'
   const s = job.summary ?? {}
