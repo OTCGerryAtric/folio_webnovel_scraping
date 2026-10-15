@@ -89,6 +89,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, help="port (default: the first free one from 8765)")
     serve.add_argument("--no-browser", dest="browser", action="store_false",
                        help="do not open a browser")
+    serve.add_argument("--allow-host", dest="allow_hosts", action="append", default=[], metavar="NAME",
+                       help="another name or address to answer to, such as a Tailscale one; repeatable")
 
     return parser
 
@@ -326,7 +328,8 @@ def build_files(book, settings, fmt="epub", start=None, end=None) -> list[Path]:
 def _serve(args, root, report, **_):
     from scraper.web import serve
 
-    return serve.serve(root, lan=args.lan, port=args.port, open_browser=args.browser, report=report)
+    return serve.serve(root, lan=args.lan, port=args.port, open_browser=args.browser, report=report,
+                       extra_hosts=args.allow_hosts)
 
 
 _HANDLERS = {

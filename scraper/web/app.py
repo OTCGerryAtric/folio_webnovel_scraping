@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -28,7 +28,10 @@ from scraper.commands import add_book, book_fetcher
 from scraper.fetch import fetch_page
 from scraper.review import normalise
 from scraper.stages import read_cleaned
+from scraper.web.anchor import make_anchor, resolve_position
+from scraper.web.chapters import list_chapters, load_chapter, read_chapter
 from scraper.web.jobs import Busy, JobManager, read_activity
+from scraper.web.positions import Conflict, read_position, save_position
 from scraper.web.library import SiteCache, chapter_map, ensure_cover, fetch_bytes, save_cover, summary
 from scraper.web.settings import read_settings, write_raw, write_settings
 from scraper.web.watermarks import review_rows, suggest_pattern, test_pattern
@@ -81,6 +84,15 @@ class PatternIn(BaseModel):
 
 class SentenceIn(BaseModel):
     sentence: str
+
+
+class PositionIn(BaseModel):
+    base_revision: int
+    chapter: int
+    paragraph: int
+    offset: float
+    device: str = Field(max_length=64)
+    device_name: str = Field(max_length=80)
 
 
 def create_app(
@@ -353,6 +365,70 @@ def create_app(
         if key and key not in current:
             write_settings(book, {"review_ignore": [*current, key]})
         return {"ignored": key}
+
+    # -- reading -----------------------------------------------------------
+
+    chapter_lists: dict[str, tuple] = {}
+
+    @app.get("/api/books/{name}/chapters")
+    def chapters(name: str):
+        book = find(name)
+        now = stamp(book)  # reading every chapter's title is slow for a long book
+        held = chapter_lists.get(book.name)
+        if held is None or held[0] != now:
+            held = (now, list_chapters(book))
+            chapter_lists[book.name] = held
+        items = held[1]
+        return {
+            "chapters": items,
+            "first": items[0]["number"] if items else None,
+            "last": items[-1]["number"] if items else None,
+        }
+
+    @app.get("/api/books/{name}/chapters/{number}")
+    def chapter(name: str, number: str):
+        book = find(name)
+        found = read_chapter(book, int(number)) if number.isdigit() else None
+        if found is None:
+            raise HTTPException(404, f"Chapter {number} is not available")
+        return found
+
+    def with_resolved(book: Book, stored: dict) -> dict:
+        position = stored["position"]
+        resolved = None
+        if position:
+            resolved = resolve_position(position, book.cleaned_numbers(), lambda n: load_chapter(book, n))
+        return {**stored, "resolved": resolved}
+
+    @app.get("/api/books/{name}/position")
+    def get_position(name: str):
+        book = find(name)
+        return with_resolved(book, read_position(book))
+
+    @app.put("/api/books/{name}/position")
+    def put_position(name: str, body: PositionIn):
+        book = find(name)
+        loaded = load_chapter(book, body.chapter)
+        if loaded is None:
+            raise Invalid(f"Chapter {body.chapter} is not available to read")
+        version, paragraphs = loaded
+        paragraph = max(0, min(body.paragraph, len(paragraphs) - 1))
+        # The server fills in what identifies the passage, so it can be
+        # found again after a re-clean, whatever the device sent.
+        position = {
+            "chapter": body.chapter,
+            "paragraph": paragraph,
+            "offset": max(0.0, min(body.offset, 1.0)),
+            "anchor": make_anchor(paragraphs[paragraph]) if paragraphs else "",
+            "paragraphs": len(paragraphs),
+            "version": version,
+            "device": body.device,
+            "device_name": body.device_name,
+        }
+        try:
+            return with_resolved(book, save_position(book, body.base_revision, position))
+        except Conflict as conflict:
+            return JSONResponse(with_resolved(book, conflict.current), status_code=409)
 
     # -- settings and files ------------------------------------------------
 

@@ -38,13 +38,15 @@ def lan_address() -> str:
 
 
 def serve(root, lan: bool = False, port: int | None = None, open_browser: bool = True,
-          run=uvicorn.run, report=None) -> int:
+          run=uvicorn.run, report=None, extra_hosts=()) -> int:
     report = report or (lambda message: print(message, file=sys.stderr))
     host = "0.0.0.0" if lan else "127.0.0.1"
     port = port or free_port(host)
     key = secrets.token_urlsafe(12) if lan else None
     address = lan_address() if lan else None
-    hosts = ["127.0.0.1", "localhost", *([address] if address else [])]
+    # Names given with --allow-host, such as a Tailscale address, are
+    # answered too; devices there still need the access key with --lan.
+    hosts = ["127.0.0.1", "localhost", *([address] if address else []), *extra_hosts]
     app = create_app(root=root, lan_key=key, allowed_hosts=hosts)
 
     local = f"http://127.0.0.1:{port}/"
