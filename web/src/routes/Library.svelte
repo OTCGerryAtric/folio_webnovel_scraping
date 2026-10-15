@@ -60,6 +60,9 @@
   }
 
   onMount(() => {
+    // #/add?url=... opens the dialog with that page looked up: handy as a bookmarklet.
+    const deepLink = location.hash.match(/^#\/add(?:\?url=(.*))?$/)
+    if (deepLink) openAdd(deepLink[1] ? decodeURIComponent(deepLink[1]) : '')
     load().then(checkSites)
     const stop = jobsStore.onFinish(() => load())
     const onKey = (e: KeyboardEvent) => {
