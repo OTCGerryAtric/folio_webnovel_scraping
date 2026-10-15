@@ -23,7 +23,12 @@
       return null // the PC did not answer: start at the beginning; saving will retry
     }
     if (explicit) return null // a chapter was chosen: open it; the next save moves the place there
-    if (decision.kind === 'go') return { ...decision.place, note: decision.note }
+    if (decision.kind === 'go') {
+      // Landed on another chapter than the saved one (it's missing, perhaps
+      // mid re-clean): don't save over the real place until the reader acts.
+      if (decision.recovered === 'moved') sync.hold()
+      return { ...decision.place, note: decision.note }
+    }
     if (decision.kind === 'ask') {
       const ask = decision
       return new Promise<Place>(answer => (asking = { theirs: ask.theirs, ours: ask.ours as OwnPlace, answer }))
@@ -48,11 +53,14 @@
   }
 
   onMount(() => {
+    const acted = () => sync.release()
+    for (const kind of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) addEventListener(kind, acted, { passive: true })
     const onVisibility = () => (document.visibilityState === 'hidden' ? sync.flush() : sync.onVisible())
     const onHide = () => sync.flush()
     document.addEventListener('visibilitychange', onVisibility)
     addEventListener('pagehide', onHide)
     return () => {
+      for (const kind of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) removeEventListener(kind, acted)
       sync.flush()
       document.removeEventListener('visibilitychange', onVisibility)
       removeEventListener('pagehide', onHide)
@@ -69,9 +77,9 @@
   onchapter={() => sync.flush()}
 >
   {#if asking}
-    <ContinuePrompt theirs={asking.theirs} ours={asking.ours} onchoose={choose} />
+    <ContinuePrompt theirs={asking.theirs} ours={asking.ours} skew={sync.skew} onchoose={choose} />
   {/if}
   {#if sync.banner}
-    <ConflictBanner theirs={sync.banner} ongo={goThere} onkeep={() => sync.keepHere()} />
+    <ConflictBanner theirs={sync.banner} ongo={goThere} onkeep={() => sync.keepHere(reader?.place())} />
   {/if}
 </Reader>

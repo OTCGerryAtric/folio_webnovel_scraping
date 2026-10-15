@@ -66,6 +66,7 @@ export interface PositionSave {
   offset: number
   device: string
   device_name: string
+  tab: string
 }
 
 /** Save a reading place. A 409 is an answer here, not an error: it carries the newer place. */
@@ -86,7 +87,8 @@ export async function savePosition(
     throw new ApiError(0, 'Folio is not reachable. Is it still running?')
   }
   const data = await response.json().catch(() => ({}))
-  if (response.status === 409) return { ok: false, stored: data as Stored }
+  // Only a 409 carrying the newer place is a conflict; anything else is a failed save.
+  if (response.status === 409 && typeof data.revision === 'number') return { ok: false, stored: data as Stored }
   if (!response.ok) throw new ApiError(response.status, data.error ?? `${response.status} ${response.statusText}`)
   return { ok: true, stored: data as Stored }
 }

@@ -8,8 +8,12 @@
   let {
     theirs,
     ours,
+    skew = 0,
     onchoose,
-  }: { theirs: Theirs; ours: OwnPlace; onchoose: (which: 'theirs' | 'ours') => void } = $props()
+  }: { theirs: Theirs; ours: OwnPlace; skew?: number; onchoose: (which: 'theirs' | 'ours') => void } = $props()
+
+  // saved_at is the server's time; shift it onto this device's clock before comparing.
+  const theirsAt = $derived((Date.parse(theirs.saved_at) + skew) / 1000)
 
   const snippet = (text: string) => {
     const words = text.split(' ').slice(0, 7).join(' ')
@@ -35,7 +39,7 @@
           <span class="block font-semibold">Chapter {theirs.resolvedChapter.toLocaleString('en-GB')}</span>
           {#if theirs.excerpt}<span class="block truncate text-sm opacity-75">“{theirs.excerpt}”</span>
           {:else if theirs.anchor}<span class="block truncate text-sm opacity-75">{snippet(theirs.anchor)}</span>{/if}
-          <span class="mt-0.5 block text-xs opacity-60">{theirs.device_name}, {timeAgo(theirs.saved_at)}</span>
+          <span class="mt-0.5 block text-xs opacity-60">{theirs.device_name}, {timeAgo(theirsAt)}</span>
         </span>
       </button>
       <button class="choice" onclick={() => onchoose('ours')}>

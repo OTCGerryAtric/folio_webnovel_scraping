@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition'
+  import { getDevice } from '../../lib/reader/device'
   import type { Theirs } from '../../lib/reader/sync'
 
   let { theirs, ongo, onkeep }: { theirs: Theirs; ongo: () => void; onkeep: () => void } = $props()
@@ -8,7 +9,11 @@
 <div class="fixed inset-x-0 top-[calc(3.6rem+env(safe-area-inset-top))] z-40 flex justify-center px-3" transition:fly={{ y: -16, duration: 200 }}>
   <div class="banner flex w-full max-w-xl flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl px-4 py-3 text-sm shadow-xl" role="status">
     <p class="min-w-0 flex-1">
-      Your <strong>{theirs.device_name}</strong> has moved on to chapter {theirs.resolvedChapter.toLocaleString('en-GB')}.
+      {#if theirs.device === getDevice().id}
+        This book has moved on to chapter {theirs.resolvedChapter.toLocaleString('en-GB')} in another tab.
+      {:else}
+        Your <strong>{theirs.device_name}</strong> has moved on to chapter {theirs.resolvedChapter.toLocaleString('en-GB')}.
+      {/if}
     </p>
     <div class="flex gap-2">
       <button class="act primary" onclick={ongo}>Go there</button>

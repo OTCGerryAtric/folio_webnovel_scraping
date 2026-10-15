@@ -40,9 +40,23 @@ it('compares places', () => {
   expect(differs({ chapter: 1, paragraph: 0, offset: 0 }, { chapter: 1, paragraph: 4, offset: 0 })).toBe(true)
 })
 
-it('shows a banner when another device moved on, and quietly adopts its own other tab', () => {
-  expect(onConflict(stored(theirs), 'pc')).toMatchObject({ kind: 'banner', revision: 5, theirs: { chapter: 1240 } })
-  expect(onConflict(stored({ ...theirs, device: 'pc' }), 'pc')).toEqual({ kind: 'adopt', revision: 5 })
+it('shows a banner when another device or tab moved on, and adopts only its own save', () => {
+  expect(onConflict(stored(theirs), 'pc', 'tab1')).toMatchObject({ kind: 'banner', revision: 5, theirs: { chapter: 1240 } })
+  // another tab on this same device: still a banner - it may be far ahead
+  expect(onConflict(stored({ ...theirs, device: 'pc', tab: 'tab2' }), 'pc', 'tab1').kind).toBe('banner')
+  // this very tab's own save that crossed with another send: just catch up
+  expect(onConflict(stored({ ...theirs, device: 'pc', tab: 'tab1' }), 'pc', 'tab1')).toEqual({ kind: 'adopt', revision: 5 })
+})
+
+it("prefers this device's own later place when its last save never reached the PC", () => {
+  const ownSaved = { ...theirs, device: 'pc', chapter: 1240, paragraph: 5 }
+  const got = decideOnOpen(stored(ownSaved), 'pc', { chapter: 1240, paragraph: 40, offset: 0.2 })
+  expect(got).toMatchObject({ kind: 'go', place: { chapter: 1240, paragraph: 40, offset: 0.2 } })
+})
+
+it('says when it had to move to another chapter, so saving can wait for the reader', () => {
+  const moved = decideOnOpen(stored(theirs, { chapter: 1241, paragraph: 0, offset: 0, recovered: 'moved' }), 'pc', null)
+  expect(moved).toMatchObject({ kind: 'go', recovered: 'moved' })
 })
 
 it('remembers where this device was even when the save failed', () => {

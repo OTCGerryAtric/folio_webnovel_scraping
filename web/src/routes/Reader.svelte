@@ -76,7 +76,13 @@
     scrollTo({ top: Math.max(0, scrollTarget(rects(), paragraph, offset) - TOP) })
   }
 
+  let alive = true
+  let opening = 0
+
   export async function open(n: number, place?: { paragraph: number; offset: number }, withNote?: string) {
+    // A later open (an arrow key, a drawer pick) wins over one still loading.
+    const ticket = ++opening
+    const stale = () => !alive || ticket !== opening
     if (!current) status = 'loading'
     note = withNote ?? null
     try {
@@ -86,11 +92,13 @@
           return new Promise(resolve => setTimeout(resolve, ms))
         },
       })
+      if (stale()) return
       current = loaded
       status = 'ready'
       await tick()
       // The text face arriving late would reflow the page after we scroll.
       await document.fonts?.ready.catch(() => {})
+      if (stale()) return
       if (place && (place.paragraph > 0 || place.offset > 0)) goTo(place.paragraph, place.offset)
       else scrollTo({ top: 0 })
       // Keep the address on "resume", so a reload comes back to the saved place.
@@ -98,8 +106,22 @@
       onchapter?.(loaded)
       report()
     } catch (e) {
+      if (stale()) return
+      if ((e as ApiError).status === 404 && !(await bookExists())) {
+        status = 'gone' // renamed or removed while it was open
+        return
+      }
       status = 'error'
       message = (e as ApiError).status === 404 ? `Chapter ${n.toLocaleString('en-GB')} isn't available.` : (e as ApiError).message
+    }
+  }
+
+  async function bookExists(): Promise<boolean> {
+    try {
+      await api.book(book)
+      return true
+    } catch (e) {
+      return (e as ApiError).status !== 404
     }
   }
 
@@ -108,7 +130,7 @@
   }
 
   function report() {
-    if (current && status === 'ready') onspot?.({ chapter: current.number, ...here() })
+    if (alive && current && status === 'ready') onspot?.({ chapter: current.number, ...here() })
   }
 
   function changeSettings(s: ReaderSettings) {
@@ -175,6 +197,7 @@
     addEventListener('scroll', onScroll, { passive: true })
     addEventListener('keydown', onKey)
     return () => {
+      alive = false
       removeEventListener('scroll', onScroll)
       removeEventListener('keydown', onKey)
       cancelAnimationFrame(frame)
