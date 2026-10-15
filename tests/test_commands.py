@@ -346,3 +346,29 @@ def test_review_output_is_ascii_safe_and_skips_ignored(tmp_path):
     assert code == 0
     assert "\"It's not enough at all...\"" in out
     assert "shook" not in out
+
+
+# --- shared steps -------------------------------------------------------------
+
+
+def test_add_book_returns_the_book_its_info_and_phrase(tmp_path):
+    from scraper.commands import add_book
+
+    book, info, phrase = add_book(tmp_path, {PAGE_URL: BOOK_PAGE}.get, page_url=PAGE_URL, name="W")
+
+    assert book.name == "W" and book.has_config()
+    assert info.latest == 1274
+    assert phrase
+
+
+def test_build_files_uses_blocks_when_the_book_has_them(tmp_path):
+    from scraper.commands import build_files
+
+    book = Book(tmp_path / "B")
+    book.create({"title": "B", "url_template": "http://x/{n}", "build_every": 2})
+    for n in (1, 2, 3):
+        book.cleaned_path(n).write_text(f"# C{n}\n\nText {n}.\n", encoding="utf-8")
+
+    paths = build_files(book, book.settings(), fmt="md")
+
+    assert [p.name for p in paths] == ["B 1-2.md", "B 3-3.md"]

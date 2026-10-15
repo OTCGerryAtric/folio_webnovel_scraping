@@ -108,27 +108,51 @@ def run_command(
 # --- add ----------------------------------------------------------------------
 
 
-def _add(args, root, get_page, report, **_):
-    if args.url_template:
-        title = args.title or args.name
+def add_book(root, get_page, *, page_url=None, name=None, url_template=None, title=None):
+    """Create a book folder from its page, or from a URL template and title.
+
+    Returns the book, what its page said (None when added by template), and
+    the pattern for the site's name (None when too short to be safe).
+    """
+    info = phrase = None
+    if url_template:
+        title = title or name
         if not title:
             raise ValueError("Adding with --url needs --title (or --name).")
-        values = {"title": title, "url_template": args.url_template}
-        summary = title
-    elif args.page_url:
-        html = get_page(args.page_url)
+        values = {"title": title, "url_template": url_template}
+    elif page_url:
+        html = get_page(page_url)
         if html is None:
-            raise ValueError(f"Could not fetch {args.page_url}")
-        info = parse_book_page(html, args.page_url)
+            raise ValueError(f"Could not fetch {page_url}")
+        info = parse_book_page(html, page_url)
         title = info.title
-        phrase = site_phrase(args.page_url)
+        phrase = site_phrase(page_url)
         values = {
             "title": info.title,
             "author": info.author,
-            "source": args.page_url,
+            "source": page_url,
             "url_template": info.url_template,
             "remove_phrases": [phrase] if phrase else None,
         }
+    else:
+        raise ValueError("Give the book page URL, or --url with a {n} template and --title.")
+
+    folder = safe_folder_name(name or title)
+    if not folder:
+        raise ValueError(f"Cannot make a folder name from {name or title!r}. Pass --name.")
+    book = Book(Path(root) / folder)
+    book.create(values)
+    return book, info, phrase
+
+
+def _add(args, root, get_page, report, **_):
+    book, info, phrase = add_book(
+        root, get_page, page_url=args.page_url, name=args.name,
+        url_template=args.url_template, title=args.title,
+    )
+    if info is None:
+        summary = book.settings().title
+    else:
         by = f", by {info.author}" if info.author else ""
         state = f" ({info.status})" if info.status else ""
         summary = f"{info.title}{by}{state}"
@@ -140,14 +164,6 @@ def _add(args, root, get_page, report, **_):
             summary += "\n  sentences naming the site will be removed (remove_phrases in book.toml)"
         else:
             summary += "\n  the site's name is too short to remove safely; add remove_phrases by hand"
-    else:
-        raise ValueError("Give the book page URL, or --url with a {n} template and --title.")
-
-    folder = safe_folder_name(args.name or title)
-    if not folder:
-        raise ValueError(f"Cannot make a folder name from {args.name or title!r}. Pass --name.")
-    book = Book(root / folder)
-    book.create(values)
 
     report(f"Added {book.name}")
     report(f"  {summary}")
@@ -208,14 +224,14 @@ def _status(args, root, get_page, report, **_):
 def _download(args, root, fetcher_factory, get_page, report, **_):
     book = find_book(args.book, root)
     settings = book.settings(start=args.start, end=args.end, refresh=args.refresh)
-    fetched = _fetch_new(book, settings, fetcher_factory, get_page, report)
+    fetched = fetch_new(book, settings, fetcher_factory, get_page, report)
     report(f"Downloaded {len(fetched)} chapter(s). Held: {describe_ranges(book.raw_numbers())}")
     return 0
 
 
 def _clean(args, root, report, **_):
     book = find_book(args.book, root)
-    _run_clean(book, book.settings(dedupe=args.dedupe), report)
+    clean_and_report(book, book.settings(dedupe=args.dedupe), report)
     return 0
 
 
@@ -239,15 +255,13 @@ def _review(args, root, report, **_):
 def _build(args, root, report, **_):
     book = find_book(args.book, root)
     settings = book.settings(build_every=args.every)
+    paths = build_files(book, settings, fmt=args.format, start=args.start, end=args.end)
     if settings.build_every:
-        paths = build_blocks(
-            book, settings, settings.build_every, fmt=args.format, start=args.start, end=args.end
-        )
         report(f"Wrote {len(paths)} file(s), {settings.build_every} chapters to a block:")
         for path in paths:
             report(f"  {path}")
         return 0
-    path = build(book, settings, fmt=args.format, start=args.start, end=args.end)
+    path = paths[0]
     count = len(read_cleaned(book, args.start, args.end))
     report(f"Wrote {count} chapter(s) to {path}")
     return 0
@@ -256,27 +270,34 @@ def _build(args, root, report, **_):
 def _update(args, root, fetcher_factory, get_page, report, **_):
     book = find_book(args.book, root)
     settings = book.settings()
-    fetched = _fetch_new(book, settings, fetcher_factory, get_page, report)
+    fetched = fetch_new(book, settings, fetcher_factory, get_page, report)
     if not fetched:
         report(f"Up to date: no new chapters. Held: {describe_ranges(book.raw_numbers())}")
         return 0
-    _run_clean(book, settings, report)
+    clean_and_report(book, settings, report)
     path = build(book, settings, fmt=args.format, start=min(fetched), end=max(fetched))
     report(f"Wrote {len(fetched)} new chapter(s) to {path}")
     return 0
 
 
-def _fetch_new(book, settings, fetcher_factory, get_page, report) -> list[int]:
+def fetch_new(
+    book, settings, fetcher_factory, get_page, report, progress=None, should_stop=None
+) -> list[int]:
+    """Download what is new, up to the site's latest chapter when it says."""
     latest = None
     if settings.end is None:
         latest = site_latest(settings, get_page)
         if latest:
             report(f"The site lists {latest} chapters.")
-    return download(book, settings, fetcher_factory(settings), latest=latest, log=report)
+    return download(
+        book, settings, fetcher_factory(settings), latest=latest, log=report,
+        progress=progress, should_stop=should_stop,
+    )
 
 
-def _run_clean(book, settings, report) -> None:
-    result = clean(book, settings)
+def clean_and_report(book, settings, report, progress=None):
+    """Clean the book and say what was removed. Returns the `CleanResult`."""
+    result = clean(book, settings, progress=progress)
     if result.skipped:
         report(f"Skipped {len(result.skipped)} raw page(s) with no text: {describe_ranges(result.skipped)}")
     report_removals(result.removals, len(result.pages), report)
@@ -285,6 +306,14 @@ def _run_clean(book, settings, report) -> None:
         report(f"Titles: {result.retitled} chapter(s) took a title from titles.json.")
     warn_if_emptied(result.pages, report)
     report(f"Cleaned {len(result.pages)} chapter(s) into {book.cleaned_dir}")
+    return result
+
+
+def build_files(book, settings, fmt="epub", start=None, end=None) -> list[Path]:
+    """Build one file, or one per block when the book builds in blocks."""
+    if settings.build_every:
+        return build_blocks(book, settings, settings.build_every, fmt=fmt, start=start, end=end)
+    return [build(book, settings, fmt=fmt, start=start, end=end)]
 
 
 _HANDLERS = {
