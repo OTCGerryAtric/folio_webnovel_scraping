@@ -3,6 +3,7 @@
 // (re)connect the store reseeds from /api/jobs so nothing is missed.
 
 import { api } from './api'
+import { staleJobIds } from './reconcile'
 import type { Job, JobEvent } from './types'
 
 export interface LiveJob extends Job {
@@ -38,7 +39,12 @@ class JobsStore {
 
   private async seed() {
     try {
-      for (const job of await api.jobs()) this.upsert(job, job.log ?? [])
+      const current = await api.jobs()
+      for (const id of staleJobIds(Object.values(this.jobs), current.map(j => j.id))) {
+        // Folio was restarted under this job: it is not running any more.
+        this.jobs[id] = { ...this.jobs[id], status: 'cancelled', error: 'Folio was restarted' }
+      }
+      for (const job of current) this.upsert(job, job.log ?? [])
     } catch {
       // the stream will retry
     }
