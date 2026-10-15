@@ -13,6 +13,8 @@ export interface SavedPlace extends Place {
   device_name: string
   saved_at: string
   anchor: string
+  /** The paragraph's opening as written, for showing. */
+  excerpt?: string
 }
 
 export type Recovered = 'exact' | 'anchor' | 'proportional' | 'moved'

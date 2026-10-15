@@ -4,10 +4,11 @@
   // numbers like the files built from it. Drawn on a canvas: books run to
   // thousands of chapters.
   import { onMount } from 'svelte'
+  import { readPath, router } from '../lib/router.svelte'
   import { theme } from '../lib/theme.svelte'
   import type { ChapterState, MapRun, OutputFile } from '../lib/types'
 
-  let { map, outputs, buildEvery }: { map: MapRun[]; outputs: OutputFile[]; buildEvery: number } = $props()
+  let { name, map, outputs, buildEvery }: { name: string; map: MapRun[]; outputs: OutputFile[]; buildEvery: number } = $props()
 
   const STATES: ChapterState[] = ['cleaned', 'raw', 'missing', 'new']
   const LABELS: Record<ChapterState, string> = {
@@ -123,19 +124,32 @@
     requestAnimationFrame(draw)
   })
 
-  function onMove(e: PointerEvent) {
+  /** The chapter under the pointer, and its run. */
+  function hit(e: MouseEvent): { n: number; run: MapRun; x: number; y: number } | null {
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     const seg = segments.find(s => y >= s.y && y < s.y + s.rows * pitch)
     const col = Math.floor((x - gutter) / pitch)
-    if (!seg || x < gutter || col >= cols) return (tip = null)
+    if (!seg || x < gutter || col >= cols) return null
     const n = seg.base + Math.floor((y - seg.y) / pitch) * cols + col
     const run = n >= seg.from && n <= seg.to ? runAt(n) : null
-    if (!run) return (tip = null)
-    const [state, a, b] = run
+    return run ? { n, run, x, y } : null
+  }
+
+  function onMove(e: PointerEvent) {
+    const found = hit(e)
+    if (!found) return (tip = null)
+    const [state, a, b] = found.run
     const span = a === b ? `Chapter ${a.toLocaleString('en-GB')}` : `Chapters ${a.toLocaleString('en-GB')}–${b.toLocaleString('en-GB')}`
-    tip = { x: Math.min(x, width - 220), y, text: `${span} · ${LABELS[state]}` }
+    const action = state === 'cleaned' ? ` · click to read ${found.n.toLocaleString('en-GB')}` : ''
+    tip = { x: Math.min(found.x, width - 260), y: found.y, text: `${span} · ${LABELS[state]}${action}` }
+    canvas.style.cursor = state === 'cleaned' ? 'pointer' : 'default'
+  }
+
+  function onClick(e: MouseEvent) {
+    const found = hit(e)
+    if (found && found.run[0] === 'cleaned') router.go(readPath(name, found.n))
   }
 
   onMount(() => {
@@ -180,6 +194,7 @@
       class="block w-full touch-none"
       onpointermove={onMove}
       onpointerdown={onMove}
+      onclick={onClick}
       onpointerleave={() => (tip = null)}
     ></canvas>
     {#if tip}

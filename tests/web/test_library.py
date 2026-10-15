@@ -92,3 +92,14 @@ def test_save_cover_ignores_what_is_not_an_image(tmp_path):
 
     assert save_cover(book, "http://x/c", lambda url: b"<html>") is None
     assert book.cover_path is None
+
+
+def test_summary_says_where_reading_got_to(tmp_path):
+    from scraper.web.positions import save_position
+
+    book = make(tmp_path)
+    assert summary(book, SiteCache(lambda url: None))["reading"] is None
+
+    save_position(book, 0, {"chapter": 7, "paragraph": 2, "offset": 0.1, "device": "d", "device_name": "PC"})
+
+    assert summary(book, SiteCache(lambda url: None))["reading"] == {"chapter": 7}

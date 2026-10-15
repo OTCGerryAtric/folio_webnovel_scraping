@@ -28,7 +28,7 @@ from scraper.commands import add_book, book_fetcher
 from scraper.fetch import fetch_page
 from scraper.review import normalise
 from scraper.stages import read_cleaned
-from scraper.web.anchor import make_anchor, resolve_position
+from scraper.web.anchor import make_anchor, make_excerpt, resolve_position
 from scraper.web.chapters import list_chapters, load_chapter, read_chapter
 from scraper.web.jobs import Busy, JobManager, read_activity
 from scraper.web.positions import Conflict, read_position, save_position
@@ -420,6 +420,7 @@ def create_app(
             "paragraph": paragraph,
             "offset": max(0.0, min(body.offset, 1.0)),
             "anchor": make_anchor(paragraphs[paragraph]) if paragraphs else "",
+            "excerpt": make_excerpt(paragraphs[paragraph]) if paragraphs else "",
             "paragraphs": len(paragraphs),
             "version": version,
             "device": body.device,

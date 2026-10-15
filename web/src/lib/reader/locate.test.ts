@@ -17,3 +17,10 @@ it('scrolls back to the same spot, even in one enormous paragraph', () => {
   const huge = [{ top: 0, height: 20000 }]
   expect(scrollTarget(huge, 0, topParagraph(huge, 12345).offset)).toBeCloseTo(12345, 0)
 })
+
+it('does not slip back a paragraph when scrolling lands a fraction of a pixel short', () => {
+  const tight = [{ top: 0, height: 100 }, { top: 100, height: 100 }]
+  // scrollTo rounds to whole pixels; the reading line can end up 0.4px above paragraph 1
+  expect(topParagraph(tight, 99.6)).toEqual({ paragraph: 1, offset: 0 })
+  expect(topParagraph(tight, 98)).toEqual({ paragraph: 0, offset: 0.98 })
+})

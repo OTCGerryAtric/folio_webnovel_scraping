@@ -32,6 +32,8 @@ export interface BookSummary {
   build_every: number
   outputs: OutputFile[]
   has_cover: boolean
+  /** Where reading got to, for "Continue reading". */
+  reading: { chapter: number } | null
   job: string | null
 }
 

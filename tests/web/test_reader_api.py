@@ -48,6 +48,7 @@ def test_save_fills_in_the_rest_and_resolves(tmp_path):
     position = saved["position"]
     assert position["anchor"].startswith("chapter 2 paragraph 3")
     assert position["paragraphs"] == 10 and len(position["version"]) == 12 and position["saved_at"]
+    assert position["excerpt"] == "Chapter 2 paragraph 3 says its own particular thing here."
     got = client.get("/api/books/B/position").json()
     assert got["resolved"]["recovered"] == "exact" and got["resolved"]["paragraph"] == 3
 

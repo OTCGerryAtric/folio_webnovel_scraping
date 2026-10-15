@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { ArrowLeft, Download, ExternalLink, Hammer, RefreshCw, Sparkles, Globe } from '@lucide/svelte'
+  import { ArrowLeft, BookOpen, Download, ExternalLink, Hammer, RefreshCw, Sparkles, Globe } from '@lucide/svelte'
   import { onMount } from 'svelte'
   import { api, ApiError } from '../lib/api'
   import { jobsStore } from '../lib/events.svelte'
   import { hostOf, timeAgo } from '../lib/ranges'
-  import { bookPath, router, type Tab } from '../lib/router.svelte'
+  import { bookPath, readPath, router, type Tab } from '../lib/router.svelte'
   import { toasts } from '../lib/toasts.svelte'
   import type { BookDetail, JobRequest } from '../lib/types'
   import ActionMenu from '../components/ActionMenu.svelte'
@@ -68,6 +68,9 @@
       const target = e.target as HTMLElement
       if (e.key === 'u' && !e.ctrlKey && !e.metaKey && !['INPUT', 'TEXTAREA'].includes(target.tagName) && !job && book?.ready) {
         start({ kind: 'update' })
+      }
+      if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !['INPUT', 'TEXTAREA'].includes(target.tagName) && book?.cleaned) {
+        router.go(readPath(name))
       }
     }
     addEventListener('keydown', onKey)
@@ -137,6 +140,12 @@
             {#if book.new}<span class="rounded-full bg-accent-ink/15 px-2 py-0.5 text-xs tabular">{book.new} new</span>{/if}
           </button>
         {/if}
+        {#if book.cleaned}
+          <a class="btn h-11 px-4" href={readPath(name)} title="Read (r)">
+            <BookOpen size={17} />
+            <span class="hidden sm:inline">{book.reading ? `Continue reading · ch ${book.reading.chapter.toLocaleString('en-GB')}` : 'Read'}</span>
+          </a>
+        {/if}
         <ActionMenu
           actions={[
             { label: 'Download only', hint: 'Fetch new chapters, nothing else', icon: Download, run: () => start({ kind: 'download' }), disabled: !!job || !book.ready },
@@ -162,7 +171,7 @@
   <div class="mt-6 sm:mt-8">
     {#if tab === 'overview'}
       <div class="grid gap-6">
-        <ChapterMap map={book.map} outputs={book.outputs} buildEvery={book.build_every} />
+        <ChapterMap {name} map={book.map} outputs={book.outputs} buildEvery={book.build_every} />
         <Activity items={book.activity} />
       </div>
     {:else if tab === 'watermarks'}

@@ -21,6 +21,15 @@ def make_anchor(paragraph: str) -> str:
     return " ".join(normalise(paragraph).split()[:ANCHOR_WORDS])
 
 
+EXCERPT = 90
+
+
+def make_excerpt(paragraph: str) -> str:
+    """The paragraph's opening as a person reads it, for "continue near ..."."""
+    text = " ".join(paragraph.replace("*", "").replace("_", "").lstrip("#> -").split())
+    return text if len(text) <= EXCERPT else text[:EXCERPT].rsplit(" ", 1)[0] + "…"
+
+
 def _same_opening(anchor: str, paragraph: str) -> bool:
     opening = make_anchor(paragraph)
     return bool(opening) and (opening.startswith(anchor) or anchor.startswith(opening))

@@ -13,11 +13,16 @@ export interface Spot {
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
 
+// Scrolling lands on whole pixels while text sits on fractions of one, so
+// the reading line can stop just short of a paragraph's start. Within this
+// much, it counts as that paragraph - otherwise each save would slip back.
+const SLACK = 1
+
 /** The paragraph at `viewTop` (paragraph rectangles in the same coordinates), and how far into it. */
 export function topParagraph(rects: Rect[], viewTop: number): Spot {
   for (let i = 0; i < rects.length; i++) {
     const { top, height } = rects[i]
-    if (top + height > viewTop) {
+    if (top + height > viewTop + SLACK) {
       return { paragraph: i, offset: height > 0 ? clamp((viewTop - top) / height) : 0 }
     }
   }

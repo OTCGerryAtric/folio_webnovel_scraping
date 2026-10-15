@@ -15,6 +15,7 @@ from scraper.book import Book, missing_numbers
 from scraper.bookpage import parse_book_page
 from scraper.fetch import DEFAULT_USER_AGENT
 from scraper.stages import site_latest
+from scraper.web.positions import read_position
 
 _RANGE_RE = re.compile(r"(\d+)-(\d+)$")
 _MAGIC = ((b"\xff\xd8", ".jpg"), (b"\x89PNG", ".png"), (b"GIF8", ".gif"))
@@ -91,6 +92,7 @@ def summary(book: Book, site: SiteCache) -> dict:
         "missing": 0, "latest": site.peek(book.name), "new": 0, "build_every": 0,
         "outputs": [file_info(p) for p in book.outputs()],
         "has_cover": book.cover_path is not None,
+        "reading": _reading(book),
     }
     try:
         settings = book.settings()
@@ -107,6 +109,12 @@ def summary(book: Book, site: SiteCache) -> dict:
     if data["latest"]:
         data["new"] = max(data["latest"] - max(raw, default=settings.start - 1), 0)
     return data
+
+
+def _reading(book: Book) -> dict | None:
+    """Where reading got to, for "Continue reading"."""
+    position = read_position(book)["position"]
+    return {"chapter": position["chapter"]} if position else None
 
 
 def fetch_bytes(url: str) -> bytes | None:

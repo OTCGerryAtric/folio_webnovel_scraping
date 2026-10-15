@@ -2,7 +2,7 @@
   // The reader: one chapter at a time, scrolled, set like a book. The place
   // is a paragraph and a fraction of it, so it survives text-size changes.
   import { ArrowLeft, ArrowRight, BookOpen, Loader2 } from '@lucide/svelte'
-  import { onMount, tick, untrack } from 'svelte'
+  import { onMount, tick, untrack, type Snippet } from 'svelte'
   import { api, ApiError } from '../lib/api'
   import { scrollTarget, topParagraph, type Rect, type Spot } from '../lib/reader/locate'
   import { loadSettings, MEASURE_EM, saveSettings, type ReaderSettings } from '../lib/reader/settings'
@@ -20,6 +20,7 @@
     onspot,
     onchapter,
     start,
+    children,
   }: {
     name: string
     chapter?: number | null
@@ -27,8 +28,13 @@
     onspot?: (place: { chapter: number } & Spot) => void
     /** Hears each chapter opened. */
     onchapter?: (c: Chapter) => void
-    /** Where to open when no chapter is asked for: resolved by the caller (the saved place). */
-    start?: (list: ChapterList) => Promise<{ chapter: number; paragraph: number; offset: number; note?: string } | null>
+    /**
+     * Where to open: the caller's saved place. Also called (with explicit
+     * true) when a chapter was asked for, so the caller can catch up first.
+     */
+    start?: (list: ChapterList, explicit: boolean) => Promise<{ chapter: number; paragraph: number; offset: number; note?: string } | null>
+    /** Shown inside the reader, so it takes the reader's theme. */
+    children?: Snippet
   } = $props()
 
   const TOP = 72 // the reading line sits just under the toolbar
@@ -83,6 +89,8 @@
       current = loaded
       status = 'ready'
       await tick()
+      // The text face arriving late would reflow the page after we scroll.
+      await document.fonts?.ready.catch(() => {})
       if (place && (place.paragraph > 0 || place.offset > 0)) goTo(place.paragraph, place.offset)
       else scrollTo({ top: 0 })
       // Keep the address on "resume", so a reload comes back to the saved place.
@@ -156,8 +164,11 @@
         return
       }
       if (!list.chapters.length) return (status = 'empty')
-      if (chapter && list.chapters.some(c => c.number === chapter)) return open(chapter)
-      const resumed = start ? await start(list) : null
+      if (chapter && list.chapters.some(c => c.number === chapter)) {
+        await start?.(list, true)
+        return open(chapter)
+      }
+      const resumed = start ? await start(list, false) : null
       if (resumed) return open(resumed.chapter, resumed, resumed.note)
       open(chapter ?? list.first!)
     })()
@@ -259,6 +270,7 @@
     <ChapterDrawer bind:open={drawer} {list} current={current?.number ?? null} onpick={n => open(n)} />
   {/if}
   <SettingsPanel bind:open={panel} {settings} onchange={changeSettings} />
+  {@render children?.()}
 </div>
 
 <style>
