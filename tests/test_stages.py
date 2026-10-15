@@ -346,3 +346,17 @@ def test_clean_reports_progress(tmp_path):
     clean(book, book.settings(), progress=lambda done, total: seen.append((done, total)))
 
     assert seen == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_build_puts_the_books_cover_on_the_epub(tmp_path):
+    import ebooklib
+    from ebooklib import epub
+
+    book = make_book(tmp_path)
+    book.raw_path(1).write_text(chapter("Some story text."), encoding="utf-8")
+    clean(book, book.settings())
+    (book.folder / "cover.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+
+    path = build(book, book.settings())
+
+    assert list(epub.read_epub(str(path)).get_items_of_type(ebooklib.ITEM_COVER))

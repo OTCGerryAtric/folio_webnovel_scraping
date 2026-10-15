@@ -26,6 +26,8 @@ TITLES_FILE = "titles.json"
 RAW_DIR = "01 Raw"
 CLEANED_DIR = "02 Cleaned"
 OUTPUT_DIR = "03 Output"
+COVER_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "cover.gif")
+ACTIVITY_FILE = ".activity.jsonl"
 
 _FORBIDDEN_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _SPACES_RE = re.compile(r"\s+")
@@ -98,6 +100,16 @@ class Book:
     @property
     def output_dir(self) -> Path:
         return self.folder / OUTPUT_DIR
+
+    @property
+    def cover_path(self) -> Path | None:
+        """The book's cover image, if it has one."""
+        return next((self.folder / n for n in COVER_NAMES if (self.folder / n).is_file()), None)
+
+    @property
+    def activity_path(self) -> Path:
+        """Where the web app records the jobs run on this book."""
+        return self.folder / ACTIVITY_FILE
 
     def raw_path(self, number: int) -> Path:
         return self.raw_dir / chapter_file(number, ".html")

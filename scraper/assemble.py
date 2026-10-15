@@ -28,9 +28,13 @@ _ORDERED_ITEM_RE = re.compile(r"^\d+\.\s+(.*)$")
 
 
 def write_document(
-    pages: list[Page], out_path: Path | str, title: str | None = None
+    pages: list[Page], out_path: Path | str, title: str | None = None,
+    cover: Path | str | None = None,
 ) -> Path:
-    """Write `pages` to `out_path` as one document."""
+    """Write `pages` to `out_path` as one document.
+
+    `cover` is an image file for the epub's cover; other formats ignore it.
+    """
     if not pages:
         raise ValueError("no pages to write")
 
@@ -43,7 +47,10 @@ def write_document(
         )
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    writer(pages, path, title)
+    if writer is _write_epub:
+        writer(pages, path, title, cover)
+    else:
+        writer(pages, path, title)
     return path
 
 
@@ -113,13 +120,16 @@ def _unescape(text: str) -> str:
 # --- epub -------------------------------------------------------------------
 
 
-def _write_epub(pages: list[Page], path: Path, title: str | None) -> None:
+def _write_epub(pages: list[Page], path: Path, title: str | None, cover=None) -> None:
     from ebooklib import epub
 
     book = epub.EpubBook()
     book.set_identifier(str(uuid.uuid4()))
     book.set_title(title or path.stem)
     book.set_language("en")
+    if cover is not None and Path(cover).is_file():
+        cover = Path(cover)
+        book.set_cover(f"cover{cover.suffix.lower()}", cover.read_bytes())
 
     chapters = []
     for index, page in enumerate(pages, 1):

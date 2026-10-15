@@ -195,3 +195,24 @@ def test_existing_nesting_still_works_in_epub(tmp_path):
         )
     assert "<strong>bold with <em>it</em> in</strong>" in contents
     assert "<em>it with <strong>bold</strong> in</em>" in contents
+
+
+# --- covers -----------------------------------------------------------------
+
+
+def test_epub_carries_a_cover_when_given(tmp_path):
+    import ebooklib
+    from ebooklib import epub
+
+    cover = tmp_path / "cover.png"
+    cover.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    out = write_document([page(1, "One", "Text.")], tmp_path / "b.epub", cover=cover)
+
+    items = list(epub.read_epub(str(out)).get_items_of_type(ebooklib.ITEM_COVER))
+    assert len(items) == 1
+
+
+def test_other_formats_ignore_the_cover(tmp_path):
+    out = write_document([page(1, "One", "Text.")], tmp_path / "b.md", cover=tmp_path / "none.png")
+
+    assert out.read_text(encoding="utf-8").startswith("#")

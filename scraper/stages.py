@@ -206,7 +206,7 @@ def build(
         span = "" if start is None and end is None else f" in {start or 1}-{end or 'end'}"
         raise ValueError(f"{book.name} has no cleaned chapters{span}. Run clean first.")
     path = book.output_dir / f"{book.name} {pages[0].number}-{pages[-1].number}.{fmt.lower().lstrip('.')}"
-    return write_document(pages, path, title=settings.title or book.name)
+    return write_document(pages, path, title=settings.title or book.name, cover=book.cover_path)
 
 
 def build_blocks(

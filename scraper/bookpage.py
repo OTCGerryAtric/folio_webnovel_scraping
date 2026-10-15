@@ -31,6 +31,7 @@ class BookInfo:
     latest: int | None
     status: str | None
     updated: str | None
+    cover: str | None = None
 
 
 def parse_book_page(html: str, page_url: str) -> BookInfo:
@@ -49,6 +50,9 @@ def parse_book_page(html: str, page_url: str) -> BookInfo:
             f"for the number) and --title instead."
         )
 
+    image = soup.find("meta", attrs={"property": "og:image"})
+    cover = (image.get("content") or "").strip() if image else ""
+
     return BookInfo(
         title=title,
         author=meta("author"),
@@ -56,6 +60,7 @@ def parse_book_page(html: str, page_url: str) -> BookInfo:
         latest=chapter_from_url(meta("lastest_chapter_url") or meta("latest_chapter_url")),
         status=meta("status"),
         updated=meta("update_time"),
+        cover=urljoin(page_url, cover) if cover else None,
     )
 
 

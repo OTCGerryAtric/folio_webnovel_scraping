@@ -83,3 +83,15 @@ def test_the_site_phrase_comes_from_the_site_name_not_a_subdomain():
 
 def test_a_site_name_too_short_to_be_safe_gives_no_phrase():
     assert site_phrase("https://ab.co/novel/x") is None
+
+
+def test_cover_is_read_from_og_image():
+    html = BOOK_PAGE.replace("</head>", '<meta property="og:image" content="/files/cover.jpg"></head>')
+
+    info = parse_book_page(html, "https://freewebnovel.com/novel/x")
+
+    assert info.cover == "https://freewebnovel.com/files/cover.jpg"
+
+
+def test_no_og_image_means_no_cover():
+    assert parse_book_page(BOOK_PAGE, "https://freewebnovel.com/novel/x").cover is None

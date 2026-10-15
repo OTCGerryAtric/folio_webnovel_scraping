@@ -155,3 +155,13 @@ def test_an_unknown_name_lists_the_books(tmp_path):
 
     with pytest.raises(ValueError, match="Books: Shadow Slave"):
         find_book("dragons", tmp_path)
+
+
+def test_cover_path_finds_whichever_image_is_there(tmp_path):
+    book = Book(tmp_path / "B")
+    book.folder.mkdir()
+    assert book.cover_path is None
+
+    (book.folder / "cover.webp").write_bytes(b"x")
+
+    assert book.cover_path == book.folder / "cover.webp"
