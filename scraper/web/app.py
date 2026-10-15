@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -93,6 +94,7 @@ class PositionIn(BaseModel):
     offset: float
     device: str = Field(max_length=64)
     device_name: str = Field(max_length=80)
+    tab: str = Field(default="", max_length=40)
 
 
 def create_app(
@@ -398,12 +400,21 @@ def create_app(
         resolved = None
         if position:
             resolved = resolve_position(position, book.cleaned_numbers(), lambda n: load_chapter(book, n))
-        return {**stored, "resolved": resolved}
+        # The server's clock, so a device with a wrong one can still say "2 hours ago".
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {**stored, "resolved": resolved, "now": now}
+
+    def unavailable(exc: OSError) -> JSONResponse:
+        # Not a conflict: the place could not be read or written just now.
+        return error(503, f"Your reading place could not be reached just now: {exc}")
 
     @app.get("/api/books/{name}/position")
     def get_position(name: str):
         book = find(name)
-        return with_resolved(book, read_position(book))
+        try:
+            return with_resolved(book, read_position(book))
+        except OSError as exc:
+            return unavailable(exc)
 
     @app.put("/api/books/{name}/position")
     def put_position(name: str, body: PositionIn):
@@ -425,11 +436,14 @@ def create_app(
             "version": version,
             "device": body.device,
             "device_name": body.device_name,
+            "tab": body.tab,
         }
         try:
             return with_resolved(book, save_position(book, body.base_revision, position))
         except Conflict as conflict:
             return JSONResponse(with_resolved(book, conflict.current), status_code=409)
+        except OSError as exc:
+            return unavailable(exc)
 
     # -- settings and files ------------------------------------------------
 

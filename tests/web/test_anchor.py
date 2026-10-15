@@ -63,3 +63,9 @@ def test_search_stays_near_the_old_place():
     far = ["x y z"] * 30 + PARAS[17:18]
     assert find_paragraph(make_anchor(PARAS[17]), far, near=0) is None  # 30 away: beyond the window
     assert find_paragraph("", PARAS, near=0) is None
+
+
+def test_a_short_paragraph_is_not_taken_for_the_start_of_a_longer_one():
+    """ "He." normalises to "he", which is a character prefix of "her voice..." """
+    paras = ["He.", "Her voice trembled as she spoke the words again tonight."]
+    assert find_paragraph(make_anchor(paras[1]), paras, near=0) == 1

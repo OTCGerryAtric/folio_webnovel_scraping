@@ -113,7 +113,10 @@ def summary(book: Book, site: SiteCache) -> dict:
 
 def _reading(book: Book) -> dict | None:
     """Where reading got to, for "Continue reading"."""
-    position = read_position(book)["position"]
+    try:
+        position = read_position(book)["position"]
+    except OSError:  # locked for a moment: the card just shows no place
+        return None
     return {"chapter": position["chapter"]} if position else None
 
 

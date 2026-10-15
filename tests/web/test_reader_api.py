@@ -55,7 +55,8 @@ def test_save_fills_in_the_rest_and_resolves(tmp_path):
 
 def test_nothing_saved_yet(tmp_path):
     make_book(tmp_path)
-    assert client_for(tmp_path).get("/api/books/B/position").json() == {"revision": 0, "position": None, "resolved": None}
+    got = client_for(tmp_path).get("/api/books/B/position").json()
+    assert (got["revision"], got["position"], got["resolved"]) == (0, None, None)
 
 
 def test_a_stale_save_gets_409_with_the_newer_place(tmp_path):
@@ -138,3 +139,32 @@ def test_the_chapter_list_sees_new_chapters(tmp_path):
     book.cleaned_path(9).write_text("# C9\n\nNew.\n", encoding="utf-8")
 
     assert client.get("/api/books/B/chapters").json()["last"] == 9
+
+
+def test_a_save_the_disk_refuses_is_503_not_a_conflict(tmp_path, monkeypatch):
+    from scraper.web import app as app_module
+
+    make_book(tmp_path)
+    client = client_for(tmp_path)
+    monkeypatch.setattr(app_module, "save_position", lambda *a, **k: (_ for _ in ()).throw(PermissionError(5, "denied")))
+
+    response = put(client)
+
+    assert response.status_code == 503 and "error" in response.json()
+
+
+def test_the_server_says_what_time_it_is(tmp_path):
+    make_book(tmp_path)
+    client = client_for(tmp_path)
+
+    assert client.get("/api/books/B/position").json()["now"].endswith("Z")
+    assert put(client).json()["now"].endswith("Z")
+
+
+def test_allow_host_refuses_wildcards(tmp_path):
+    import pytest
+    from scraper.web.serve import serve
+
+    for bad in ("*", "*.ts.net"):
+        with pytest.raises(ValueError, match="wildcard"):
+            serve(tmp_path, open_browser=False, port=9999, report=lambda m: None, extra_hosts=[bad], run=lambda app, **kw: None)

@@ -31,8 +31,10 @@ def make_excerpt(paragraph: str) -> str:
 
 
 def _same_opening(anchor: str, paragraph: str) -> bool:
-    opening = make_anchor(paragraph)
-    return bool(opening) and (opening.startswith(anchor) or anchor.startswith(opening))
+    """Word for word, as far as the shorter goes: "he" is not the start of "her"."""
+    wanted, opening = anchor.split(), make_anchor(paragraph).split()
+    shorter = min(len(wanted), len(opening))
+    return shorter > 0 and wanted[:shorter] == opening[:shorter]
 
 
 def _similar_opening(anchor: str, paragraph: str) -> bool:

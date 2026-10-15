@@ -74,3 +74,45 @@ def test_no_temporary_files_are_left_behind(book):
 
     assert sorted(p.name for p in book.folder.iterdir() if p.is_file()) == ["book.toml", "reading.json"]
     assert json.loads(book.reading_path.read_text(encoding="utf-8"))["revision"] == 1
+
+
+def test_a_briefly_locked_file_is_retried_not_lost(book, monkeypatch):
+    """On Windows a reader or scanner holding reading.json makes replace fail for a moment."""
+    import os
+
+    real, failures = os.replace, [2]
+
+    def flaky(src, dst):
+        if failures[0]:
+            failures[0] -= 1
+            raise PermissionError(5, "Access is denied")
+        return real(src, dst)
+    monkeypatch.setattr(os, "replace", flaky)
+
+    assert save_position(book, 0, PLACE, now=CLOCK)["revision"] == 1
+
+
+def test_a_file_that_stays_locked_fails_loudly(book, monkeypatch):
+    import os
+
+    monkeypatch.setattr(os, "replace", lambda src, dst: (_ for _ in ()).throw(PermissionError(5, "denied")))
+
+    with pytest.raises(OSError):
+        save_position(book, 0, PLACE, now=CLOCK)
+    assert [p.name for p in book.folder.iterdir() if p.name.startswith(".reading-")] == []
+
+
+def test_a_locked_file_is_not_mistaken_for_nothing_saved(book, monkeypatch):
+    from pathlib import Path
+
+    save_position(book, 0, PLACE, now=CLOCK)
+    monkeypatch.setattr(Path, "read_text", lambda self, **kw: (_ for _ in ()).throw(PermissionError(5, "denied")))
+
+    with pytest.raises(OSError):
+        read_position(book)
+
+
+def test_a_position_of_the_wrong_shape_reads_as_nothing_saved(book):
+    book.reading_path.write_text('{"revision": 3, "position": {"chapter": "five"}}', encoding="utf-8")
+
+    assert read_position(book) == {"revision": 3, "position": None}
