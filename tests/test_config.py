@@ -255,3 +255,24 @@ def test_review_ignore_is_a_known_setting():
 def test_parse_site_config_rejects_unknown_keys():
     with pytest.raises(ValueError, match="Unknown setting"):
         parse_site_config('nonsense = 1\n', "book.toml")
+
+
+@pytest.mark.parametrize("config, key", [
+    ({"start": "1"}, "start"),
+    ({"step": "x"}, "step"),
+    ({"delay": "soon"}, "delay"),
+    ({"dedupe": "yes"}, "dedupe"),
+    ({"remove_phrases": "Visit site"}, "remove_phrases"),
+    ({"strip_patterns": [1, 2]}, "strip_patterns"),
+    ({"title": 5}, "title"),
+    ({"build_every": True}, "build_every"),
+])
+def test_settings_of_the_wrong_type_are_refused(config, key):
+    with pytest.raises(ValueError, match=key):
+        build_settings({"url_template": "http://x/{n}"}, config, require_out=False)
+
+
+def test_whole_numbers_are_fine_where_decimals_are_expected():
+    settings = build_settings({"url_template": "http://x/{n}"}, {"delay": 2, "dedupe_threshold": 1}, require_out=False)
+
+    assert settings.delay == 2

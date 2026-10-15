@@ -94,7 +94,7 @@ def summary(book: Book, site: SiteCache) -> dict:
     }
     try:
         settings = book.settings()
-    except ValueError as exc:
+    except Exception as exc:  # one broken book.toml must not take the library down
         data.update(ready=False, error=str(exc))
         return data
     data.update(

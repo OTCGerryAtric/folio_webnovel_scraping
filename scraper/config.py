@@ -154,7 +154,38 @@ def build_settings(args: dict, config: dict | None = None, require_out: bool = T
     return Settings(**{k: merged[k] for k in DEFAULTS})
 
 
+_INT_KEYS = {"start", "end", "step", "max_misses", "max_retries", "overlap_window", "build_every"}
+_FLOAT_KEYS = {"delay", "backoff", "timeout", "dedupe_threshold"}
+_BOOL_KEYS = {"dedupe", "trim_overlap", "refresh", "verbose"}
+_LIST_KEYS = {"remove_selectors", "strip_patterns", "remove_phrases", "review_ignore"}
+
+
+def _check_types(values: dict) -> None:
+    """A quoted number or a lone string where a list belongs fails here, not later."""
+    for key, value in values.items():
+        if value is None:
+            continue
+        if key in _BOOL_KEYS:
+            ok = isinstance(value, bool)
+            kind = "true or false"
+        elif key in _INT_KEYS:
+            ok = isinstance(value, int) and not isinstance(value, bool)
+            kind = "a whole number"
+        elif key in _FLOAT_KEYS:
+            ok = isinstance(value, (int, float)) and not isinstance(value, bool)
+            kind = "a number"
+        elif key in _LIST_KEYS:
+            ok = isinstance(value, list) and all(isinstance(v, str) for v in value)
+            kind = "a list of text, like ['a', 'b']"
+        else:
+            ok = isinstance(value, str)
+            kind = "text"
+        if not ok:
+            raise ValueError(f"{key} must be {kind}, not {value!r}")
+
+
 def _validate(values: dict, require_out: bool = True) -> None:
+    _check_types(values)
     template = values.get("url_template")
     if not template:
         raise ValueError(

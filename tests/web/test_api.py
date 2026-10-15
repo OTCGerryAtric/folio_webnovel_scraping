@@ -152,3 +152,30 @@ def test_review_sees_the_text_change_after_a_clean(client, book):
     assert all("FreeWebNovel" not in r["text"] for r in rows)
     tried = client.post("/api/books/B/review/test", json={"pattern": "freewebnovel"}).json()
     assert tried["sentences"] == 0
+
+
+def test_a_raw_save_of_the_wrong_type_is_refused_and_the_library_still_loads(client, book):
+    book.raw_path(1).write_text("x", encoding="utf-8")
+    before = book.config_path.read_bytes()
+
+    bad = client.put("/api/books/B/settings", json={"raw": 'url_template = "http://x/{n}"\nstart = "1"\n'})
+
+    assert bad.status_code == 422 and "start" in bad.json()["error"]
+    assert book.config_path.read_bytes() == before
+    assert client.get("/api/books").status_code == 200
+
+
+def test_one_broken_book_does_not_take_down_the_library(client, book, root, monkeypatch):
+    Book(root / "Other").create({"title": "Other", "url_template": "http://x/{n}"})
+    real = Book.settings
+
+    def broken(self, **overrides):
+        if self.name == "B":
+            raise TypeError("something unforeseen")
+        return real(self, **overrides)
+    monkeypatch.setattr(Book, "settings", broken)
+
+    books = {b["name"]: b for b in client.get("/api/books").json()}
+
+    assert books["Other"]["ready"] and not books["B"]["ready"]
+    assert "something unforeseen" in books["B"]["error"]
