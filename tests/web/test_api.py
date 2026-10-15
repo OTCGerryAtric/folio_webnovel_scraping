@@ -229,3 +229,16 @@ def test_lan_mode_accepts_the_machines_own_address(root):
                      allowed_hosts=["127.0.0.1", "localhost", "192.168.1.5"])
     phone = TestClient(app, base_url="http://192.168.1.5:8765", client=("192.168.1.20", 5000))
     assert phone.get("/api/books?key=k").status_code == 200
+
+
+def test_keep_all_marks_many_sentences_at_once(client, book):
+    rows = client.get("/api/books/B/review?min=4").json()["rows"]
+    story = [r["text"] for r in rows if r["kind"] == "story"]
+    assert story and any(r["kind"] == "junk" for r in rows)
+
+    kept = client.post("/api/books/B/review/ignore-all", json={"sentences": story})
+
+    assert kept.status_code == 200 and kept.json()["ignored"] == len(story)
+    left = [r["text"] for r in client.get("/api/books/B/review?min=4").json()["rows"]]
+    assert not set(story) & set(left)  # the kept lines are gone (the list holds at most 60)
+    assert "Read more at FreeWebNovel.Com today." in left  # the junk is still there

@@ -47,6 +47,8 @@ export const api = {
     call<PatternResult>('POST', `/api/books/${enc(name)}/review/test`, { pattern }),
   suggest: (name: string, sentence: string) =>
     call<{ pattern: string }>('POST', `/api/books/${enc(name)}/review/phrase`, { sentence }),
+  ignoreAll: (name: string, sentences: string[]) =>
+    call<{ ignored: number }>('POST', `/api/books/${enc(name)}/review/ignore-all`, { sentences }),
   ignore: (name: string, sentence: string) =>
     call<{ ignored: string }>('POST', `/api/books/${enc(name)}/review/ignore`, { sentence }),
   settings: (name: string) => call<SettingsData>('GET', `/api/books/${enc(name)}/settings`),

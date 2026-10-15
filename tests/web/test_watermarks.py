@@ -61,3 +61,69 @@ def test_suggested_pattern_matches_however_it_is_punctuated():
 
     assert re.search(pattern, "read more at freewebnovel com today", re.IGNORECASE)
     assert not re.search(pattern, "read more today", re.IGNORECASE)
+
+
+# --- telling site and author notes from the story ---------------------------------
+
+from scraper.web.watermarks import classify  # noqa: E402
+
+# Lines that repeat across Weakest Beast Tamer, as the site and author added them...
+JUNK = [
+    ("Give it a power stone!", "reader"),
+    ("Have some idea about my story?", "reader"),
+    ("Comment it and let me know.", "reader"),
+    ("Thank you so much for reading!", "reader"),
+    ("┻━┻ ︵ヽ(`Д´)ﾉ︵ ┻━┻ – It’s free and you help me a lot", "symbols"),
+    ('Follow new episodes on the "N0vel1st.c0m".', "website"),
+    ("Read more at FreeWebNovel.Com today.", "website"),
+    ("Visit www.example.org for the latest chapters.", "website"),
+]
+# ...and lines that repeat because the author writes that way.
+STORY = [
+    "The silence that followed was absolute.",
+    "Ren shook his head.",
+    '"What’s happening?"',
+    "Selphira smiled.",
+    "But it was too late.",
+    '"What do you mean?"',
+    "she said finally.",
+    '"Help me!"',
+    '"No comment," he said.',
+    "He commented on the weather and left.",
+    "The army moved to support the vanguard.",
+    # Shadow Slave's in-world system messages, with the brackets escaped as they are stored
+    "\\[You have received a Memory...\\]",
+    "\\[Your Memory has been destroyed.\\]",
+    "*Sunny gritted his teeth.*",
+]
+
+
+@pytest.mark.parametrize("text, signal", JUNK)
+def test_site_and_author_notes_look_like_junk(text, signal):
+    kind, signals = classify(text)
+    assert kind == "junk" and signal in signals
+
+
+@pytest.mark.parametrize("text", STORY)
+def test_the_authors_own_lines_look_like_story(text):
+    assert classify(text) == ("story", [])
+
+
+def test_rows_say_which_kind_and_why():
+    pages_ = [Page(number=i, title=None, body=f"Ren shook his head. Story {i} goes on and on here. Give it a power stone!")
+              for i in range(1, 6)]
+
+    rows = {r["text"]: r for r in review_rows(pages_, min_chapters=4, ignore=[])}
+
+    assert rows["Give it a power stone!"]["kind"] == "junk" and rows["Give it a power stone!"]["signals"] == ["reader"]
+    assert rows["Ren shook his head."]["kind"] == "story" and rows["Ren shook his head."]["signals"] == []
+
+
+def test_the_tester_warns_when_a_pattern_catches_story():
+    lines = [f"Ren shook his head {i} times." for i in range(5)] + ["Line plain filler sentence here."] * 300
+    pages_ = [Page(number=1, title=None, body=" ".join(lines))]
+
+    result = try_pattern(pages_, "shook his head")
+
+    assert "look like the story" in result["story_warning"]
+    assert "story_warning" not in try_pattern(pages(60), "freewebnovel")
