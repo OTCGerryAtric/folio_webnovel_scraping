@@ -114,6 +114,9 @@
       {#if result.warning}
         <p class="mt-2 flex items-start gap-2 text-sm text-warn"><AlertTriangle size={15} class="mt-0.5 shrink-0" />{result.warning}</p>
       {/if}
+      {#if result.story_warning}
+        <p class="mt-2 flex items-start gap-2 text-sm text-warn"><AlertTriangle size={15} class="mt-0.5 shrink-0" />{result.story_warning}</p>
+      {/if}
       {#if result.examples.length}
         <ul class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
           {#each result.examples as ex}

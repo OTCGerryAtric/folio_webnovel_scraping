@@ -83,6 +83,10 @@ class SentenceIn(BaseModel):
     sentence: str
 
 
+class SentencesIn(BaseModel):
+    sentences: list[str]
+
+
 def create_app(
     root=BOOKS_DIR,
     get_page=fetch_page,
@@ -353,6 +357,16 @@ def create_app(
         if key and key not in current:
             write_settings(book, {"review_ignore": [*current, key]})
         return {"ignored": key}
+
+    @app.post("/api/books/{name}/review/ignore-all")
+    def ignore_all(name: str, body: SentencesIn):
+        """Keep many sentences as the author's own, in one write."""
+        book = find(name)
+        current = book.settings().review_ignore
+        keys = [k for k in dict.fromkeys(normalise(s) for s in body.sentences) if k and k not in current]
+        if keys:
+            write_settings(book, {"review_ignore": [*current, *keys]})
+        return {"ignored": len(keys)}
 
     # -- settings and files ------------------------------------------------
 

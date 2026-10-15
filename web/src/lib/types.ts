@@ -95,6 +95,9 @@ export interface ReviewRow {
   chapters: number
   first: number | null
   contexts: { chapter: number; text: string }[]
+  /** junk: has a sign of a site or author note; story: everything else. */
+  kind: 'junk' | 'story'
+  signals: string[]
 }
 
 export interface Review {
@@ -109,6 +112,8 @@ export interface PatternResult {
   total: number
   examples: { chapter: number; text: string; start: number; end: number }[]
   warning?: string
+  /** Set when most matches look like dialogue or narration. */
+  story_warning?: string
 }
 
 export type SettingValue = string | number | boolean | string[] | null
