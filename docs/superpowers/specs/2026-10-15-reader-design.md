@@ -1,7 +1,8 @@
 # Folio Reader — Design
 
 **Date:** 2026-10-15
-**Status:** Draft, for review. No implementation until approved.
+**Status:** Approved and implemented (branch `reader`). Where the build
+refined this design, see "As built" at the end.
 **Builds on:** `2026-10-15-web-app-design.md` (Folio)
 
 ## Purpose
@@ -359,6 +360,93 @@ Offline reading needs all of these. Phase 1 must not preclude any of them.
     shows the banner, not an overwrite.
   - Re-clean recovery on a copy of a chapter.
   - A book with gaps.
+
+## As built: reading-position and conflict decisions
+
+Implementation, testing and an independent review refined the design
+above. These are the rules as they now stand. Deferred findings are in
+`docs/backlog.md`.
+
+### What a saved place holds
+
+The server stamps everything that identifies the passage, whatever the
+browser sent:
+- `anchor`: normalised opening words, used for matching;
+- `excerpt`: the opening words as written, up to 90 characters, shown in
+  the continue prompt;
+- `paragraphs` and `version`;
+- `saved_at`: the server's time.
+
+The browser sends:
+- `chapter`, `paragraph` and `offset`; the server clamps them;
+- `device` and `device_name`;
+- `tab`: a random id per page load.
+
+### Finding the place after a re-clean
+
+- **Matching is word by word, not by character.** "He." does not count as
+  the start of "Her voice…".
+- **Two passes over the ±25-paragraph window:** an exact opening anywhere
+  in the window first, then one sharing at least 75% of its words.
+  Neighbouring paragraphs in a novel often open alike, so a near fuzzy
+  match must not beat the true one a few paragraphs away.
+
+### Which place opens
+
+On opening a book, in this order:
+1. **Nothing saved:** start at the first chapter.
+2. **This device saved last:**
+   - If this device's own later place (`lastOwn`) differs, and the chapter
+     has not been re-cleaned since, use `lastOwn`. Its last save may never
+     have reached the PC.
+   - Otherwise use the saved place.
+3. **Another device saved last, and this device has no `lastOwn`, or one
+   within 3 paragraphs:** go to the saved place.
+4. **Otherwise ask**, showing both places. The time shown for the other
+   device is shifted by the measured skew between this device's clock
+   and the server's.
+
+`lastOwn` is written to the browser **before** every save is attempted:
+- even while a banner is up;
+- even if the PC cannot be reached.
+
+So this device's own place is never lost.
+
+### Saving and conflicts
+
+- **One at a time:** saves are queued, and each sends the newest place
+  when its turn comes. Repeated flushes (tab hidden, then page closed)
+  send at most once.
+- **What counts as a repeat:** a place within 1e-4 of the last one sent.
+  So a few lines inside an enormous paragraph still save.
+- **Refused as stale (409 with a revision):**
+  - If it was this same tab's own save (two sends that crossed), catch up
+    and save once more.
+  - Anything else - another device, or another tab on this device - shows
+    the banner: "Go there" or "Keep reading here". "Keep reading here"
+    saves the place on screen, against the newer revision.
+  - Saving waits while the banner is up.
+- **Not a conflict:** a 409 without a revision, a 503, or no connection is
+  a failed save. Saving carries on with the next one.
+- **Locked file:** the server waits out a briefly locked `reading.json`
+  (Windows, scanners, indexers) before answering 503. It never pretends
+  nothing was saved.
+- **Unreadable file:** a malformed saved place reads as none.
+- **Missing chapter:** when the saved chapter is missing (for example mid
+  re-clean) and the reader lands on another, nothing is saved until the
+  person scrolls, taps or presses a key. The real place is never
+  overwritten by a fallback.
+- **Returning to a tab:** the tab checks for a newer revision and shows
+  the banner if another device or tab has moved on.
+
+### Reading line and scrolling
+
+- **Measuring the place:** the paragraph at the reading line counts with
+  1px of slack. Scrolling lands on whole pixels; without the slack,
+  each save could slip back a paragraph.
+- **Restoring the place:** the reader waits for the text face before
+  scrolling to a saved place, so a late font cannot reflow the page
+  underneath it.
 
 ## Unresolved trade-offs (for the reviewer)
 
