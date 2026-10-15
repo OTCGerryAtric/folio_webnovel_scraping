@@ -311,3 +311,38 @@ def test_blocks_with_nothing_cleaned_say_to_clean_first(tmp_path):
 
     with pytest.raises(ValueError, match="clean"):
         build_blocks(book, book.settings(), every=3)
+
+
+# --- hooks for the web app ---------------------------------------------------
+
+
+def test_download_reports_each_chapter_it_tries(tmp_path):
+    book = make_book(tmp_path)
+    fetcher = StubFetcher(book, {1: chapter(1), 3: chapter(3)})
+    seen = []
+
+    download(book, book.settings(), fetcher, latest=3, progress=lambda n, end, outcome: seen.append((n, end, outcome)))
+
+    assert seen == [(1, 3, "downloaded"), (2, 3, "not found"), (3, 3, "downloaded")]
+
+
+def test_download_stops_when_asked_and_keeps_what_it_has(tmp_path):
+    book = make_book(tmp_path)
+    fetcher = StubFetcher(book, {n: chapter(n) for n in range(1, 6)})
+    asked = iter([False, False, True])
+
+    got = download(book, book.settings(), fetcher, latest=5, should_stop=lambda: next(asked))
+
+    assert got == [1, 2]
+    assert book.raw_numbers() == [1, 2]
+
+
+def test_clean_reports_progress(tmp_path):
+    book = make_book(tmp_path)
+    for n in (1, 2, 3):
+        book.raw_path(n).write_text(chapter(f"Chapter {n} text here."), encoding="utf-8")
+    seen = []
+
+    clean(book, book.settings(), progress=lambda done, total: seen.append((done, total)))
+
+    assert seen == [(1, 3), (2, 3), (3, 3)]

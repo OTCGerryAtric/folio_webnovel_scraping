@@ -25,12 +25,19 @@ from scraper.titles import tidy_titles
 # --- download -----------------------------------------------------------------
 
 
-def download(book: Book, settings: Settings, fetcher, latest: int | None = None, log=None) -> list[int]:
+def download(
+    book: Book, settings: Settings, fetcher, latest: int | None = None, log=None,
+    progress=None, should_stop=None,
+) -> list[int]:
     """Fetch the chapters not yet in the raw folder. Returns the numbers fetched.
 
     With an end (`--end`, or the site's latest chapter) every number up to it
     is tried and gaps are skipped. Without one, the run stops after
     `max_misses` misses in a row.
+
+    `progress(number, end, outcome)` hears about each chapter tried, and
+    `should_stop()` is asked before each one; a stop keeps what was
+    fetched, as Ctrl-C does.
     """
     report = log or (lambda message: None)
     held = set() if settings.refresh else set(book.raw_numbers())
@@ -41,6 +48,9 @@ def download(book: Book, settings: Settings, fetcher, latest: int | None = None,
 
     try:
         while end is None or number <= end:
+            if should_stop is not None and should_stop():
+                report(f"Stopped. Keeping the {len(fetched)} chapter(s) already downloaded.")
+                break
             if number not in held:
                 result = fetcher.fetch(settings.url_for(number), number=number)
                 if result is None or _is_blank(result.html, settings):
@@ -50,6 +60,8 @@ def download(book: Book, settings: Settings, fetcher, latest: int | None = None,
                         blanks += 1
                     misses += 1
                     report(f"  {number}: {'not found' if result is None else 'no text found'}")
+                    if progress is not None:
+                        progress(number, end, "not found" if result is None else "no text")
                     if end is None and misses >= settings.max_misses:
                         report(f"Stopping: {misses} pages in a row came back empty.")
                         break
@@ -66,6 +78,8 @@ def download(book: Book, settings: Settings, fetcher, latest: int | None = None,
                     misses = blanks = 0
                     fetched.append(number)
                     report(f"  {number}{f'/{end}' if end else ''}: downloaded")
+                    if progress is not None:
+                        progress(number, end, "downloaded")
             number += settings.step
     except KeyboardInterrupt:
         report(f"\nInterrupted. Keeping the {len(fetched)} chapter(s) already downloaded.")
@@ -107,22 +121,26 @@ class CleanResult:
     skipped: list[int]
 
 
-def clean(book: Book, settings: Settings) -> CleanResult:
+def clean(book: Book, settings: Settings, progress=None) -> CleanResult:
     """Rebuild the cleaned folder from the raw one.
 
     Works over the whole book at once, because furniture is recognised by
     repeating across chapters and a recap by matching the chapter before.
     Everything in the cleaned folder is replaced, so a change of rules
     applies everywhere and nothing stale is left for build to pick up.
+    `progress(done, total)` hears about each raw page read.
     """
     pages, skipped = [], []
-    for number in book.raw_numbers():
+    numbers = book.raw_numbers()
+    for done, number in enumerate(numbers, 1):
         page = extract_page(
             book.raw_path(number).read_text(encoding="utf-8"),
             content_selector=settings.content_selector,
             title_selector=settings.title_selector,
             remove_selectors=settings.remove_selectors,
         )
+        if progress is not None:
+            progress(done, len(numbers))
         if page.is_empty:
             skipped.append(number)
             continue
