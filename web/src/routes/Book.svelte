@@ -3,7 +3,7 @@
   import { onMount } from 'svelte'
   import { api, ApiError } from '../lib/api'
   import { jobsStore } from '../lib/events.svelte'
-  import { timeAgo } from '../lib/ranges'
+  import { hostOf, timeAgo } from '../lib/ranges'
   import { bookPath, router, type Tab } from '../lib/router.svelte'
   import { toasts } from '../lib/toasts.svelte'
   import type { BookDetail, JobRequest } from '../lib/types'
@@ -26,7 +26,7 @@
   let settingUp = $state(false)
 
   const job = $derived(jobsStore.byBook(name))
-  const host = $derived(book?.source ? new URL(book.source).host.replace(/^www\./, '') : null)
+  const host = $derived(hostOf(book?.source))
   const lastUpdated = $derived(
     book?.activity.find(a => (a.kind === 'update' || a.kind === 'download') && a.status === 'done'),
   )

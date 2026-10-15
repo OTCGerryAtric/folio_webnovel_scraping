@@ -63,3 +63,13 @@ export function expandRuns(map: MapRun[], state: ChapterState): number[] {
   }
   return out
 }
+
+/** The site a book page is on, or null when the address is not a full one. */
+export function hostOf(source: string | null | undefined): string | null {
+  if (!source) return null
+  try {
+    return new URL(source).host.replace(/^www\./, '')
+  } catch {
+    return null
+  }
+}

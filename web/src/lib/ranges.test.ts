@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { describeRanges, eta, expandRuns, formatBytes, plural } from './ranges'
+import { describeRanges, eta, expandRuns, formatBytes, hostOf, plural } from './ranges'
 
 it('describes ranges like the CLI', () => {
   expect(describeRanges([1, 2, 3, 7])).toBe('1-3, 7')
@@ -24,4 +24,10 @@ it('expands chapter-map runs of one state', () => {
 it('pluralises', () => {
   expect(plural(1, 'chapter')).toBe('1 chapter')
   expect(plural(1274, 'chapter')).toBe('1,274 chapters')
+})
+
+it('names the site a source is on, and survives one that is not a full address', () => {
+  expect(hostOf('https://www.freewebnovel.com/novel/x')).toBe('freewebnovel.com')
+  expect(hostOf('freewebnovel.com/novel/x')).toBeNull()
+  expect(hostOf(null)).toBeNull()
 })
