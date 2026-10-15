@@ -41,8 +41,14 @@
   // Try the pattern against the whole book as it is typed.
   $effect(() => {
     const current = pattern
-    if (!open || !current.trim()) return
+    if (!open) return
     const ticket = ++asked
+    if (!current.trim()) {
+      // nothing to try yet; drop any answer still on its way
+      result = null
+      testing = false
+      return
+    }
     testing = true
     const timer = setTimeout(async () => {
       try {
@@ -93,7 +99,9 @@
   </p>
 
   <div class="mt-5 min-h-24 rounded-xl border border-line bg-surface-2/50 p-4" aria-live="polite">
-    {#if problem}
+    {#if !pattern.trim() && !problem}
+      <p class="text-sm text-faint">Type a few words, or a pattern, to see what it would remove from the book.</p>
+    {:else if problem}
       <p class="flex items-start gap-2 text-sm text-bad"><AlertTriangle size={16} class="mt-0.5 shrink-0" />{problem}</p>
     {:else if result}
       <p class="text-sm">
