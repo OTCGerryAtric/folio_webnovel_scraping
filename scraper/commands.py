@@ -26,7 +26,7 @@ from scraper.review import repeated_sentences
 from scraper.run import build_fetcher
 from scraper.stages import build, build_blocks, clean, download, read_cleaned, site_latest
 
-COMMANDS = ("add", "books", "status", "download", "clean", "review", "build", "update")
+COMMANDS = ("add", "books", "status", "download", "clean", "review", "build", "update", "serve")
 
 
 def book_fetcher(settings):
@@ -82,6 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
     update = sub.add_parser("update", help="download what is new, clean, and build the new chapters")
     update.add_argument("book")
     update.add_argument("--format", default="epub", help="epub, pdf, md or txt (default epub)")
+
+    serve = sub.add_parser("serve", help="open Folio: the books in your browser")
+    serve.add_argument("--lan", action="store_true",
+                       help="let phones and tablets on your network use it too")
+    serve.add_argument("--port", type=int, help="port (default: the first free one from 8765)")
+    serve.add_argument("--no-browser", dest="browser", action="store_false",
+                       help="do not open a browser")
 
     return parser
 
@@ -316,6 +323,12 @@ def build_files(book, settings, fmt="epub", start=None, end=None) -> list[Path]:
     return [build(book, settings, fmt=fmt, start=start, end=end)]
 
 
+def _serve(args, root, report, **_):
+    from scraper.web import serve
+
+    return serve.serve(root, lan=args.lan, port=args.port, open_browser=args.browser, report=report)
+
+
 _HANDLERS = {
     "add": _add,
     "books": _books,
@@ -325,4 +338,5 @@ _HANDLERS = {
     "review": _review,
     "build": _build,
     "update": _update,
+    "serve": _serve,
 }
