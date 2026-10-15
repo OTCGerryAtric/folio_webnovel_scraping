@@ -79,7 +79,9 @@ The CLI passes none of them and behaves exactly as now.
    sentences the user has marked as the author's own habit. Both the CLI
    `review` and the web review leave them out. It is stored as normalised
    text (the key `review` already computes), so punctuation and case
-   differences do not matter.
+   differences do not matter. `Repeat` gains that `key`, and its `text`
+   keeps the original characters; making it ASCII-safe moves to the CLI's
+   printing, where the console needs it.
 6. `Book.cover_path`: `books/<name>/cover.<ext>`, the first of
    jpg/png/webp/gif that exists.
 
@@ -121,7 +123,7 @@ reach outside `books/`.
 | `GET /api/jobs` | Running and recent jobs |
 | `POST /api/jobs/{id}/cancel` | Asks a job to stop |
 | `GET /api/events` | SSE stream of every job event (one connection per browser tab) |
-| `GET /api/books/{book}/review?min=4` | Repeated sentences, each with count, first chapter, two context snippets, and whether an existing phrase already matches it |
+| `GET /api/books/{book}/review?min=4` | Repeated sentences in the cleaned text (so already-removed ones never appear), each with its normalised key, count, first chapter and two context snippets |
 | `POST /api/books/{book}/review/test` `{pattern}` | Compiles the pattern and counts the sentences it would remove across the cleaned book, returning up to 20 highlighted examples. Rejects patterns that do not compile or that match more than 2% of sentences, with a clear message |
 | `POST /api/books/{book}/review/phrase` `{sentence}` | Suggests a pattern for a sentence: escaped, with flexible whitespace and punctuation |
 | `POST /api/books/{book}/review/ignore` `{sentence}` | Adds to `review_ignore` |
@@ -248,13 +250,11 @@ and Build individually. Tabs below:
    This turns "what have I got?" into a glance. Below it, recent
    activity.
 2. **Watermarks.** The repeated sentences, ranked by how many chapters
-   they appear in, each with a context snippet and three actions:
+   they appear in, each with a context snippet and two actions:
    - **Remove**: opens the pattern editor pre-filled with the suggested
      pattern.
    - **Keep**: marks it as the author's own (`review_ignore`); it
      disappears from the list.
-   - **Already removed**: a dimmed label when a current phrase matches
-     it.
 
    The pattern editor tests as you type (debounced), showing "would
    remove 143 sentences in 141 chapters" and highlighted examples, and
