@@ -19,7 +19,7 @@
           tone,
           title: `${job.book}: ${KIND_LABEL[job.kind].toLowerCase()} ${verb}`,
           body: describeJob(job),
-          action: job.status === 'done' && files.length === 1
+          action: job.status !== 'error' && files.length === 1
             ? { label: 'Download', href: fileUrl(job.book, files[0]), download: true }
             : undefined,
         },

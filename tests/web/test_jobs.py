@@ -112,3 +112,21 @@ def test_unknown_books_and_kinds_are_refused(tmp_path):
         manager.start("Nope", "clean")
     with pytest.raises(ValueError, match="Unknown job"):
         manager.start("B", "explode")
+
+
+def test_a_stopped_update_still_cleans_and_builds_what_it_fetched(tmp_path):
+    """As Ctrl-C does in the CLI, so those chapters reach a file."""
+    gate = threading.Event()
+    book, manager, _ = setup(tmp_path, latest=5, gate=gate)
+    job = manager.start("B", "update", {"format": "md"})
+
+    def stop_after_two(event):
+        if event["type"] == "progress" and event["progress"]["label"].startswith("Chapter") and event["progress"]["done"] == 2:
+            manager.cancel(job.id)
+    manager.add_listener(stop_after_two)
+    gate.set()
+    job = manager.wait(job.id)
+
+    assert job.summary["fetched"] == 2
+    assert job.summary["files"] == ["B 1-2.md"]
+    assert book.cleaned_numbers() == [1, 2]

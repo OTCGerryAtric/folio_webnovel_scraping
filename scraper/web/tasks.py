@@ -69,8 +69,8 @@ def run_update(book: Book, params: dict, ctx: Context) -> dict:
     if not fetched:
         ctx.report("Up to date: no new chapters.")
         return {"fetched": 0, "files": []}
-    if ctx.should_stop():
-        return {"fetched": len(fetched), "files": []}
+    # A stop ends the downloading only; what was fetched is still cleaned and
+    # built, as Ctrl-C does in the CLI, so those chapters reach a file.
     result = _clean(book, settings, ctx)
     path = build(book, settings, fmt=params.get("format") or "epub",
                  start=min(fetched), end=max(fetched))
